@@ -91,6 +91,16 @@ mod tests {
     }
 
     #[test]
+    fn alloc_more() {
+        let mut slots = Vec::new();
+        let mut pool: Pool<&str, 128> = Pool::new();
+
+        for _i in 0..1000 {
+            slots.push(pool.alloc("Hello Memory"));
+        }
+    }
+
+    #[test]
     #[should_panic]
     fn alloc_pincheck() {
         let mut pool: Pool<&str, 128> = Pool::new();

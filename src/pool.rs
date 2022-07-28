@@ -35,7 +35,7 @@ impl<T, const E: usize> Pool<T, E> {
             // from freelist
             let entry = self.freelist;
             unsafe {
-                debug_assert!(!Slot(entry).is_allocated(), "Invalid freelist");
+                debug_assert!(!(&*entry).is_allocated(), "Invalid freelist");
                 self.freelist = (*entry).descr;
                 (*entry).descr = Entry::<T>::UNINITIALIZED_SENTINEL;
             }
