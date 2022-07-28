@@ -5,7 +5,7 @@ use crate::*;
 
 /// Handle to allocated memory. This wraps an internal pointer to the allocation and provides
 /// an API for accessing the content. To free memory slots must eventually be given back to
-/// the pool they belong to by `pool.drop()`, `pool.forget()` or `pool.take()`. Slots do not
+/// the pool they belong to by `pool.free()`, `pool.forget()` or `pool.take()`. Slots do not
 /// track which Pool they belong to. It is the responsibility of the user to give them back to
 /// the correct pool and ensure that they do not outlive the pool they belong to. In debug
 /// mode it asserted that a slot belongs to the pool when it is given back. Safe abstractions

@@ -5,7 +5,7 @@ use crate::*;
 /// A Memory Pool holding objects of type T with a initial block size of E objects.
 ///
 /// The pool can not track how many references to a slot are active. This makes all
-/// `drop()`, `forget()` and `take()` unsafe. Thus they have to be carefully protected by RAII
+/// `free()`, `forget()` and `take()` unsafe. Thus they have to be carefully protected by RAII
 /// guards or other means. Another approach is to use the *address* for all addressing and
 /// convert to references only on demand and drop the reference as soon as possible.
 ///
@@ -66,9 +66,9 @@ impl<T, const E: usize> Pool<T, E> {
     }
 
     /// Allocates a new slot from the pool, initializes it with the supplied object and
-    /// returns a slot handle. Freeing the object can be done manually with
-    /// `Pool::drop()` or `Pool::forget()`. The user must take care that the slot is not
-    /// used after free as this may panic or return another object.
+    /// returns a slot handle. Freeing the object can be done manually with `pool.free()`,
+    /// `pool::forget()` or `pool.take()`. The user must take care that the slot is not used
+    /// after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     pub fn alloc(&mut self, t: T) -> Slot<T> {
         let entry = self.alloc_entry();
@@ -80,8 +80,8 @@ impl<T, const E: usize> Pool<T, E> {
     }
 
     /// Allocates a new slot from the pool, keeps the content uninitialized returns its
-    /// address in the pool. Freeing the object may be done manually with `Pool::drop()` or
-    /// `Pool::forget()`. Otherwise the object will say around until the whole Pool becomes
+    /// address in the pool. Freeing the object may be done manually with `pool.free()` or
+    /// `pool.forget()`. Otherwise the object will say around until the whole Pool becomes
     /// dropped. The user must take care that the provided address is not used after free as
     /// this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
@@ -95,13 +95,13 @@ impl<T, const E: usize> Pool<T, E> {
     ///
     /// # Safety
     ///
-    /// Slots must not be dropped while references pointing to it.
+    /// Slots must not be freed while references pointing to it.
     ///
     /// # Panics
     ///
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
-    pub unsafe fn drop(&mut self, slot: Slot<T>) {
+    pub unsafe fn free(&mut self, slot: Slot<T>) {
         debug_assert!(self.has_slot(&slot));
         assert!(slot.is_allocated());
         if slot.is_initialized() {

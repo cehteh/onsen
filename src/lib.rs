@@ -71,12 +71,12 @@ mod tests {
     }
 
     #[test]
-    fn alloc_drop() {
+    fn alloc_free() {
         let mut pool: Pool<&str, 128> = Pool::new();
 
         let memory = pool.alloc("Hello Memory");
         unsafe {
-            pool.drop(memory);
+            pool.free(memory);
         }
     }
 
@@ -88,6 +88,10 @@ mod tests {
 
         assert_eq!(memory.get(), &"Hello Memory");
         assert_eq!(memory.get_mut(), &"Hello Memory");
+
+        unsafe {
+            pool.free(memory);
+        }
     }
 
     #[test]
@@ -97,6 +101,10 @@ mod tests {
 
         for _i in 0..1000 {
             slots.push(pool.alloc("Hello Memory"));
+        }
+
+        unsafe {
+            slots.drain(..).for_each(|slot| pool.free(slot));
         }
     }
 
@@ -123,5 +131,9 @@ mod tests {
         }
 
         assert_eq!(memory.get(), &"Hello Init");
+
+        unsafe {
+            pool.free(memory);
+        }
     }
 }
