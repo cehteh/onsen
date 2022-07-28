@@ -5,11 +5,10 @@
 // A Pool can hold at most $2**NUM_BLOCKS * E - E$ entries. Common architectures (x86_64 and
 // arm64) use at most 48bits for the virtual address space. An Entry is at least 8 bytes wide.
 // Thus NUM_BLOCKS=45 would hold for all theoretically possible number of allocations even in
-// the case that $E=1$, in practice memory should run out *much* earlier. Actually the last
-// allocation is guaranteed to fail because it would dedicate almost the complete address
-// space to a single Pool.  A value of 44 covering one third of the available address space
-// already exceeds most computers memory capacity (by many magnitudes). This explanations is
-// for the worst case scenario where $E=1$, usually one want E to be considerably larger.
+// the case that $E=1$, in practice memory should run out *much* earlier.  A value of 44
+// covering one third of the available address space already exceeds most computers memory
+// capacity (by many magnitudes). This explanations is for the worst case scenario where
+// $E=1$, usually one want E to be considerably larger.
 /// Maximum number of blocks in a Pool
 pub(crate) const NUM_BLOCKS: usize = 44;
 
