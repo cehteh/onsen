@@ -46,14 +46,3 @@ impl<T> Entry<T> {
         matches!(self.descr as usize, PINNED)
     }
 }
-
-// Called when a pool gets dropped
-impl<T> Drop for Entry<T> {
-    fn drop(&mut self) {
-        if self.is_initialized() {
-            unsafe {
-                self.data.assume_init_drop();
-            }
-        };
-    }
-}

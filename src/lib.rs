@@ -81,6 +81,15 @@ mod tests {
     }
 
     #[test]
+    fn pool_leak() {
+        let mut pool: Pool<&str, 128> = Pool::new();
+
+        let _memory = pool.alloc("Hello Memory");
+
+        pool.leak();
+    }
+
+    #[test]
     fn alloc_access() {
         let mut pool: Pool<&str, 128> = Pool::new();
 

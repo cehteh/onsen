@@ -15,6 +15,7 @@ pub struct Pool<T: Sized, const E: usize> {
     blocks: [Option<Vec<Entry<T>>>; NUM_BLOCKS],
     blocks_allocated: usize,
     freelist: *mut Entry<T>,
+    in_use: usize,
 }
 
 impl<T, const E: usize> Pool<T, E> {
@@ -25,6 +26,7 @@ impl<T, const E: usize> Pool<T, E> {
             blocks: [(); NUM_BLOCKS].map(|_| None),
             blocks_allocated: 0,
             freelist: Entry::<T>::END_OF_FREELIST,
+            in_use: 0,
         }
     }
 
@@ -39,6 +41,7 @@ impl<T, const E: usize> Pool<T, E> {
                 self.freelist = (*entry).descr;
                 (*entry).descr = Entry::<T>::UNINITIALIZED_SENTINEL;
             }
+            self.in_use += 1;
             entry
         } else {
             if self.blocks_allocated == 0
@@ -61,6 +64,7 @@ impl<T, const E: usize> Pool<T, E> {
                 data: MaybeUninit::uninit(),
                 descr: Entry::<T>::UNINITIALIZED_SENTINEL,
             });
+            self.in_use += 1;
             current_block.last_mut().unwrap() as *mut Entry<T>
         }
     }
@@ -109,6 +113,7 @@ impl<T, const E: usize> Pool<T, E> {
         };
         (*slot.0).descr = self.freelist;
         self.freelist = slot.0;
+        self.in_use -= 1;
     }
 
     /// Puts the given slot back into the freelist. Will not call the the destructor.
@@ -126,6 +131,7 @@ impl<T, const E: usize> Pool<T, E> {
         assert!(slot.is_allocated());
         (*slot.0).descr = self.freelist;
         self.freelist = slot.0;
+        self.in_use -= 1;
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -138,6 +144,7 @@ impl<T, const E: usize> Pool<T, E> {
     ///
     /// # Panics
     ///
+    ///  * The object at slot is not initialized
     ///  * The object at slot was ever pinned
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
@@ -146,6 +153,7 @@ impl<T, const E: usize> Pool<T, E> {
         assert!(slot.is_initialized() && !slot.is_pinned());
         (*slot.0).descr = self.freelist;
         self.freelist = slot.0;
+        self.in_use -= 1;
         (*slot.0).data.assume_init_read()
     }
 
@@ -171,6 +179,30 @@ impl<T, const E: usize> Pool<T, E> {
         }
         false
     }
+
+    /// Destroys a Pool while leaking its allocated blocks.  The fast way out when one knows
+    /// that allocations still exist and will never be returned to to the Pool. Either because
+    /// the program exits in some fast way or because the allocations are meant to stay
+    /// static.
+    pub fn leak(self) {
+        std::mem::forget(self);
+    }
+}
+
+impl<T, const E: usize> Drop for Pool<T, E> {
+    #[cfg(debug_assertions)]
+    fn drop(&mut self) {
+        if !std::thread::panicking() {
+            assert_eq!(self.in_use, 0, "Dropping Pool while Slots are still in use");
+        }
+    }
+
+    #[cfg(not(debug_assertions))]
+    fn drop(&mut self) {
+        for block in 0..self.blocks_allocated {
+            self.blocks[block].take().map(|v| v.leak());
+        }
+    }
 }
 
 /// Convenient helper that calls `Pool::new()` with a optimized size for E.
@@ -184,8 +216,8 @@ impl<T, const E: usize> Pool<T, E> {
 #[macro_export]
 macro_rules! pool {
     ($TYPE:ty, $BLOCKSIZE:ident) => {
-        Pool::< $TYPE, { <$TYPE>::$BLOCKSIZE}>::new()
-    }
+        Pool::<$TYPE, { <$TYPE>::$BLOCKSIZE }>::new()
+    };
 }
 
 impl<T, const E: usize> Default for Pool<T, E> {
