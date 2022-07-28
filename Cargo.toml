@@ -1,0 +1,14 @@
+[package]
+name = "onsen"
+version = "0.1.0"
+edition = "2021"
+authors = ["Christian Thäter <ct@pipapo.org>"]
+description = "Memory pool"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/cehteh/onsen.git"
+keywords = ["allocator", "pool"]
+
+
+[badges]
+maintenance = { status = "actively-developed" }
+
