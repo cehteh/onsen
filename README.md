@@ -16,8 +16,8 @@ when necessary, creating a pool is a cheap operation.
 # Slots and safety
 
 Allocating from a Pool returns Slot handles. These are lightweight abstractions to memory
-addresses, especially they do not keep a relation to the Pool they are allocated from. The
-rationale for this design is to make them usable in a VM that uses NaN tagging.
+addresses, they do not keep a relation to the Pool they are allocated from. The rationale for
+this design is to make them usable in a VM that uses NaN tagging.
 
 Because of this Slots need to be handled with care and certain contracts need to be
 enforced. The library provides some help to ensure correctness. The more expensive checks are
@@ -31,17 +31,17 @@ only run in debug mode.
      * When a Pool gets dropped while it still has live allocations it will panic in debug
        mode.
      * When a Pool with live allocations gets dropped in release mode it leaks its memory.
-       This is unfortunate but still ensures memory safety of the program.
+       This is unfortunate but ensures memory safety of the program.
   3. Slots must be freed only once.
-     * This is asserted.
+     * This is always asserted.
   4. References obtained from Slots must not outlive the freeing of the Slot.
      * This is the main reason that makes the Slot freeing functions unsafe. There is no way
        for a Pool to know if references are still in use. One must provide a safe abstraction
        around referenced to enforce this.
-  5. Slots can hold uninitialized data, they must be not referenced then.
-     * This is asserted.
+  5. Slots can hold uninitialized data, then no references or Pins must be taken from them.
+     * This is always asserted.
   6. Obtaining a `&mut T` from a Slot is mutually exclusive to obtaining a `Pin<&mut T>`.
-     * This is asserted.
+     * This is always asserted.
   7. Any mutable reference obtained while initializing an uninitialized Slot must be dropped
      before calling `slot.assume_init()`. This would break the Pin guarantees.
      * This is part of the reason that `slot.get_uninit()` and `slot.assume_init()` are
