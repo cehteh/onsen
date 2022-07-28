@@ -89,7 +89,7 @@ impl<T> Slot<T> {
     /// Zero cost conversion to a u64 identifier of the slot. This identifier is guaranteed
     /// to represent a 48bit wide 8-aligned pointer. Thus highest 16 bits and the last 3 bits
     /// can be used for storing auxiliary information (NaN tagging).
-    pub fn as_u64(&self) -> u64 {
+    pub fn into_u64(self) -> u64 {
         debug_assert_eq!(
             self.0 as u64 & 0xffff000000000007,
             0,
@@ -103,7 +103,7 @@ impl<T> Slot<T> {
     /// # Safety
     ///
     /// The identifier must point to the same allocation as the slot where it was got from.
-    pub unsafe fn from_u64(&self, id: u64) -> Self {
+    pub unsafe fn from_u64(id: u64) -> Self {
         debug_assert_eq!(id & 0xffff000000000007, 0, "Invalid identifier");
         Self(id as *mut Entry<T>)
     }
@@ -115,7 +115,7 @@ impl<T> Slot<T> {
     ///
     /// The identifier must point to the same allocation as the slot where it was got from. It
     /// may have the auxiliary bits set.
-    pub unsafe fn from_u64_masked(&self, id: u64) -> Self {
+    pub unsafe fn from_u64_masked(id: u64) -> Self {
         Self((id & !0xffff000000000007) as *mut Entry<T>)
     }
 
