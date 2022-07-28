@@ -20,6 +20,7 @@ pub struct Pool<T: Sized, const E: usize> {
 impl<T, const E: usize> Pool<T, E> {
     /// Creates a new Pool for objects of type T with an initial block size of E.
     pub fn new() -> Self {
+        debug_assert!(E > 0);
         Self {
             blocks: [(); NUM_BLOCKS].map(|_| None),
             blocks_allocated: 0,
@@ -169,6 +170,21 @@ impl<T, const E: usize> Pool<T, E> {
             }
         }
         false
+    }
+}
+
+/// Convenient helper that calls `Pool::new()` with a optimized size for E.
+///
+/// For example:
+/// ```
+/// # use onsen::*;
+/// struct Data(u64);
+/// let pool = pool!(Data, PAGE);
+/// ```
+#[macro_export]
+macro_rules! pool {
+    ($TYPE:ty, $BLOCKSIZE:ident) => {
+        Pool::< $TYPE, { <$TYPE>::$BLOCKSIZE}>::new()
     }
 }
 
