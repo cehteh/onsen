@@ -25,13 +25,13 @@ only run in debug mode.
 
   1. Slots must be given back to the Pool they originate from.
      * This is asserted only in debug mode because it is more expensive.
-     * There is `pool.leak()` which drops a pool while leaking its memory blocks. This can be
-       used when one will never try to free memory obtained from that Pool.
   2. Slots must not outlive the Pool they are allocated from.
      * When a Pool gets dropped while it still has live allocations it will panic in debug
        mode.
      * When a Pool with live allocations gets dropped in release mode it leaks its memory.
        This is unfortunate but ensures memory safety of the program.
+     * There is `pool.leak()` which drops a pool while leaking its memory blocks. This can be
+       used when one will never try to free memory obtained from that Pool.
   3. Slots must be freed only once.
      * This is always asserted.
   4. References obtained from Slots must not outlive the freeing of the Slot.
