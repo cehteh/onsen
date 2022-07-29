@@ -20,6 +20,7 @@ pub struct Pool<T: Sized, const E: usize> {
 
 impl<T, const E: usize> Pool<T, E> {
     /// Creates a new Pool for objects of type T with an initial block size of E.
+    #[inline]
     pub fn new() -> Self {
         debug_assert!(E > 0);
         Self {
@@ -74,6 +75,7 @@ impl<T, const E: usize> Pool<T, E> {
     /// `pool::forget()` or `pool.take()`. The user must take care that the slot is not used
     /// after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
+    #[inline]
     pub fn alloc(&mut self, t: T) -> Slot<T> {
         let entry = self.alloc_entry();
         unsafe {
@@ -89,6 +91,7 @@ impl<T, const E: usize> Pool<T, E> {
     /// dropped. The user must take care that the provided address is not used after free as
     /// this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
+    #[inline]
     pub fn alloc_uninit(&mut self) -> Slot<T> {
         Slot(self.alloc_entry())
     }
@@ -105,6 +108,7 @@ impl<T, const E: usize> Pool<T, E> {
     ///
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
+    #[inline]
     pub unsafe fn free(&mut self, slot: Slot<T>) {
         self.free_by_ref(&slot);
     }
@@ -141,6 +145,7 @@ impl<T, const E: usize> Pool<T, E> {
     ///
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
+    #[inline]
     pub unsafe fn forget(&mut self, slot: Slot<T>) {
         self.forget_by_ref(&slot);
     }
@@ -170,6 +175,7 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The object at slot was ever pinned
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
+    #[inline]
     pub unsafe fn take(&mut self, slot: Slot<T>) -> T {
         self.take_by_ref(&slot)
     }
@@ -213,6 +219,7 @@ impl<T, const E: usize> Pool<T, E> {
     /// that allocations still exist and will never be returned to to the Pool. Either because
     /// the program exits in some fast way or because the allocations are meant to stay
     /// static.
+    #[inline]
     pub fn leak(self) {
         std::mem::forget(self);
     }
