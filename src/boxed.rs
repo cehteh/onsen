@@ -11,6 +11,19 @@ pub struct Box<'a, T, const E: usize> {
     pool: &'a mut Pool<T, E>,
 }
 
+impl<T, const E: usize> Box<'_, T, E> {
+    /// Associated function that frees the memory of a Box without calling the destructor of
+    /// its value.
+    pub fn forget(b: Self) {
+        unsafe { b.pool.forget_by_ref(&b.slot) }
+    }
+
+    /// Associated function that frees the memory of a Box and returns the value it was holding.
+    pub fn take(b: Self) -> T {
+        unsafe { b.pool.take_by_ref(&b.slot) }
+    }
+}
+
 impl<'a, T, const E: usize> Pool<T, E> {
     /// Allocate a Box from a Pool.
     pub fn alloc_box(&'a mut self, t: T) -> Box<'a, T, E> {

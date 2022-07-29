@@ -109,8 +109,8 @@ impl<T, const E: usize> Pool<T, E> {
         self.free_by_ref(&slot);
     }
 
-    /// Non Slot consuming variant of `pool.free()`, allows freeing slots that are part of
-    /// other structures in Drop implementations while keeping Slot non-Copy.
+    /// Non consuming variant of `pool.free()`, allows freeing slots that are part of other
+    /// structures while keeping Slot non-Copy. The slot must not be used after this.
     ///
     /// # Safety
     ///
@@ -142,6 +142,13 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     pub unsafe fn forget(&mut self, slot: Slot<T>) {
+        self.forget_by_ref(&slot);
+    }
+
+    /// Non consuming variant of `pool.forget()`, allows forgetting slots that are part of
+    /// other structures while keeping Slot non-Copy.  The slot must not be used after this.
+    /// See `slot.forget()` for details.
+    pub unsafe fn forget_by_ref(&mut self, slot: &Slot<T>) {
         debug_assert!(self.has_slot(&slot));
         assert!(slot.is_allocated());
         (*slot.0).descr = self.freelist;
@@ -164,6 +171,13 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     pub unsafe fn take(&mut self, slot: Slot<T>) -> T {
+        self.take_by_ref(&slot)
+    }
+
+    /// Non consuming variant of `pool.take()`, allows taking slots that are part of other
+    /// structures while keeping Slot non-Copy.  The slot must not be used after this.  See
+    /// `slot.take()` for details.
+    pub unsafe fn take_by_ref(&mut self, slot: &Slot<T>) -> T {
         debug_assert!(self.has_slot(&slot));
         assert!(slot.is_initialized() && !slot.is_pinned());
         (*slot.0).descr = self.freelist;
