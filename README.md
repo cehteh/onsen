@@ -1,8 +1,9 @@
 # Description
 
-Onsen provides a Pool for objects.  Allocation from this Pool is faster and offers better
+Onsen provides a hot Pool for objects.  Allocation from this Pool is faster and offers better
 locality than the standard allocator in most cases.
 
+A Box implementation for safe handling of Pool allocated objects is included.
 
 # Details
 
