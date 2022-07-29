@@ -2,6 +2,7 @@
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
+use std::fmt;
 use std::hash::Hash;
 use std::hash::Hasher;
 use std::ops::Deref;
@@ -200,6 +201,25 @@ impl<T: Hasher, const E: usize> Hasher for Box<'_, T, E> {
     // fn write_str(&mut self, s: &str) {
     //     (**self).write_str(s)
     // }
+}
+
+impl<T: fmt::Display, const E: usize> fmt::Display for Box<'_, T, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
+    }
+}
+
+impl<T: fmt::Debug, const E: usize> fmt::Debug for Box<'_, T, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl<T, const E: usize> fmt::Pointer for Box<'_, T, E> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ptr: *const T = &**self;
+        fmt::Pointer::fmt(&ptr, f)
+    }
 }
 
 #[cfg(test)]
