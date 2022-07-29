@@ -21,7 +21,7 @@ this design is to make them usable in a VM that uses NaN tagging.
 
 Because of this Slots need to be handled with care and certain contracts need to be
 enforced. The library provides some help to ensure correctness. The more expensive checks are
-only run in debug mode.
+only run in debug mode. Few things can not be asserted and are guarded by unsafe functions.
 
   1. Slots must be given back to the Pool they originate from.
      * This is asserted only in debug mode because it is more expensive.
@@ -33,11 +33,11 @@ only run in debug mode.
      * There is `pool.leak()` which drops a pool while leaking its memory blocks. This can be
        used when one will never try to free memory obtained from that Pool.
   3. Slots must be freed only once.
-     * This is always asserted.
+     * This is always asserted. But the assertion may fail when the slot got allocated again.
   4. References obtained from Slots must not outlive the freeing of the Slot.
      * This is the main reason that makes the Slot freeing functions unsafe. There is no way
-       for a Pool to know if references are still in use. One must provide a safe abstraction
-       around referenced to enforce this.
+       for a Pool to know if references are still in use. One should provide a safe
+       abstraction around referenced to enforce this.
   5. Slots can hold uninitialized data, then no references or Pins must be taken from them.
      * This is always asserted.
   6. Obtaining a `&mut T` from a Slot is mutually exclusive to obtaining a `Pin<&mut T>`.
@@ -46,5 +46,7 @@ only run in debug mode.
      before calling `slot.assume_init()`. This would break the Pin guarantees.
      * This is part of the reason that `slot.get_uninit()` and `slot.assume_init()` are
        unsafe and must be enforced by the programmer.
-  8. All the above applies to the NaN-Tag facilities `slot.into_u64()`, `Slot::from_u64()` and
-     `Slot::from_u64_masked()`
+  8. All the above applies to the NaN tagging facilities `slot.into_u64()`, `Slot::from_u64()`
+     and `Slot::from_u64_masked()`.
+  9. The NaN tagging facilities allow to duplicate slots which is not supported. Be careful
+     when convert an u64 back to a Slot.
