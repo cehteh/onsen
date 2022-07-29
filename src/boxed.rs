@@ -56,6 +56,13 @@ impl<T, const E: usize> DerefMut for Box<'_, T, E> {
     }
 }
 
+impl<'a, T: Default, const E: usize> Pool<T, E> {
+    /// Allocate a default initialized Box from a Pool.
+    pub fn default_box(&'a mut self) -> Box<'a, T, E> {
+        self.alloc_box(T::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;
