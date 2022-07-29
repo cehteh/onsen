@@ -1,4 +1,6 @@
 //! onsen::Box is WIP! many trait implementations of the std::boxed::Box are still missing.
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
@@ -23,6 +25,14 @@ impl<T, const E: usize> Box<'_, T, E> {
     #[inline]
     pub fn take(b: Self) -> T {
         unsafe { b.pool.take_by_ref(&b.slot) }
+    }
+}
+
+impl<'a, T: Default, const E: usize> Pool<T, E> {
+    /// Allocate a default initialized Box from a Pool.
+    #[inline]
+    pub fn default_box(&'a mut self) -> Box<'a, T, E> {
+        self.alloc_box(T::default())
     }
 }
 
@@ -62,11 +72,31 @@ impl<T, const E: usize> DerefMut for Box<'_, T, E> {
     }
 }
 
-impl<'a, T: Default, const E: usize> Pool<T, E> {
-    /// Allocate a default initialized Box from a Pool.
+impl<T, const E: usize> Borrow<T> for Box<'_, T, E> {
     #[inline]
-    pub fn default_box(&'a mut self) -> Box<'a, T, E> {
-        self.alloc_box(T::default())
+    fn borrow(&self) -> &T {
+        self.slot.get()
+    }
+}
+
+impl<T, const E: usize> BorrowMut<T> for Box<'_, T, E> {
+    #[inline]
+    fn borrow_mut(&mut self) -> &mut T {
+        self.slot.get_mut()
+    }
+}
+
+impl<T, const E: usize> AsRef<T> for Box<'_, T, E> {
+    #[inline]
+    fn as_ref(&self) -> &T {
+        self.slot.get()
+    }
+}
+
+impl<T, const E: usize> AsMut<T> for Box<'_, T, E> {
+    #[inline]
+    fn as_mut(&mut self) -> &mut T {
+        self.slot.get_mut()
     }
 }
 
