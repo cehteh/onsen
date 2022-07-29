@@ -50,7 +50,7 @@ impl<T> Slot<T> {
     /// # Panics
     ///
     ///  * The slot does not contain a initialized object
-    pub fn get(&mut self) -> &T {
+    pub fn get(&self) -> &T {
         assert!(self.is_initialized());
         unsafe { (*self.0).data.assume_init_ref() }
     }

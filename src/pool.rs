@@ -106,6 +106,21 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     pub unsafe fn free(&mut self, slot: Slot<T>) {
+        self.free_by_ref(&slot);
+    }
+
+    /// Non Slot consuming variant of `pool.free()`, allows freeing slots that are part of
+    /// other structures in Drop implementations while keeping Slot non-Copy.
+    ///
+    /// # Safety
+    ///
+    /// Slots must not be freed while references pointing to it.
+    ///
+    /// # Panics
+    ///
+    ///  * The slot is already free
+    ///  * The slot is invalid, not from this pool (debug only).
+    pub unsafe fn free_by_ref(&mut self, slot: &Slot<T>) {
         debug_assert!(self.has_slot(&slot));
         assert!(slot.is_allocated());
         if slot.is_initialized() {
