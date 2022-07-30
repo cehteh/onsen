@@ -129,7 +129,7 @@ impl<T> Slot<T> {
     /// Returns true when self belong to pool.
     #[inline]
     pub fn is_in_pool<const E: usize>(&self, pool: &Pool<T, E>) -> bool {
-        pool.has_slot(self)
+        pool.0.borrow().has_slot(self)
     }
 
     /// Returns true when the slot is allocated and false when it is free.
