@@ -1,7 +1,7 @@
 # Description
 
-Onsen provides a hot Pool for objects.  Allocation from this Pool is faster and offers better
-locality than the standard allocator in most cases.
+Onsen provides a hot Pool for objects.  In most cases allocation from this Pool is faster and
+offers better locality than the standard allocator.
 
 A Box implementation for safe handling of Pool allocated objects is included.
 
@@ -10,8 +10,9 @@ A Box implementation for safe handling of Pool allocated objects is included.
 The first block in a Pool is size `[Entry<T>; E]`, when a Pool runs out of storage it
 allocates a new block from the system which is twice as big as the previous block.  E should
 be be optimized for the intended use. That is blocks should become close or equal to multiples
-of cache lines, pages, huge pages, whatever makes most sense. Memory allocation happens only
-when necessary, creating a pool is a cheap operation.
+of cache lines, pages, huge pages, whatever makes most sense. There is a OptimalBlockSize
+trait which does this calculations. Memory allocation happens only when necessary, creating a
+pool is a cheap operation.
 
 
 # Slots and safety

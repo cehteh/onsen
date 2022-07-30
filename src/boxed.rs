@@ -108,10 +108,6 @@ impl<T: PartialEq, const E: usize> PartialEq for Box<'_, T, E> {
     fn eq(&self, other: &Self) -> bool {
         PartialEq::eq(&**self, &**other)
     }
-    #[inline]
-    fn ne(&self, other: &Self) -> bool {
-        PartialEq::ne(&**self, &**other)
-    }
 }
 
 impl<T: PartialOrd, const E: usize> PartialOrd for Box<'_, T, E> {
@@ -255,6 +251,4 @@ mod tests {
         assert_eq!(box1, box2);
         assert_ne!(box1, box3);
     }
-
-
 }
