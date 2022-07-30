@@ -39,39 +39,37 @@ impl<T, const E: usize> Pool<T, E> {
                 pool.freelist = (*entry).descr;
                 (*entry).descr = Entry::<T>::UNINITIALIZED_SENTINEL;
             }
-            pool.in_use += 1;
+            pool.in_use = pool.in_use.wrapping_add(1); // can never overflow
             entry
         } else {
+            let blocks_allocated_minus_1 = pool.blocks_allocated.wrapping_sub(1);
             if pool.blocks_allocated == 0
-                || pool.blocks[pool.blocks_allocated - 1]
-                    .as_ref()
-                    .unwrap()
-                    .len()
-                    == pool.blocks[pool.blocks_allocated - 1]
+                || unsafe {
+                    // Safety: blocks_allocated_minus_1 will not be used on underflow
+                    let block = pool
+                        .blocks
+                        .get_unchecked(blocks_allocated_minus_1)
                         .as_ref()
-                        .unwrap()
-                        .capacity()
+                        .unwrap();
+
+                    block.len() == block.capacity()
+                }
             {
                 let blocks_allocated = pool.blocks_allocated;
                 pool.blocks[blocks_allocated] =
                     Some(Vec::with_capacity(E << pool.blocks_allocated));
-                pool.blocks_allocated += 1;
+                pool.blocks_allocated = pool.blocks_allocated.wrapping_add(1);
             }
 
-            let blocks_allocated = pool.blocks_allocated;
-            pool.blocks[blocks_allocated - 1]
-                .as_mut()
-                .unwrap()
-                .push(Entry {
-                    data: MaybeUninit::uninit(),
-                    descr: Entry::<T>::UNINITIALIZED_SENTINEL,
-                });
-            pool.in_use += 1;
-            pool.blocks[blocks_allocated - 1]
-                .as_mut()
-                .unwrap()
-                .last_mut()
-                .unwrap() as *mut Entry<T>
+            pool.in_use = pool.in_use.wrapping_add(1); // can never overflow
+            let blocks_allocated_minus_1 = pool.blocks_allocated.wrapping_sub(1);
+            let block = pool.blocks[blocks_allocated_minus_1].as_mut().unwrap();
+
+            block.push(Entry {
+                data: MaybeUninit::uninit(),
+                descr: Entry::<T>::UNINITIALIZED_SENTINEL,
+            });
+            block.last_mut().unwrap() as *mut Entry<T>
         }
     }
 
@@ -131,7 +129,7 @@ impl<T, const E: usize> Pool<T, E> {
         };
         (*slot.0).descr = pool.freelist;
         pool.freelist = slot.0;
-        pool.in_use -= 1;
+        pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
     }
 
     /// Puts the given slot back into the freelist. Will not call the the destructor.
@@ -159,7 +157,7 @@ impl<T, const E: usize> Pool<T, E> {
         assert!(slot.is_allocated());
         (*slot.0).descr = pool.freelist;
         pool.freelist = slot.0;
-        pool.in_use -= 1;
+        pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -191,7 +189,7 @@ impl<T, const E: usize> Pool<T, E> {
         assert!(slot.is_initialized() && !slot.is_pinned());
         (*slot.0).descr = pool.freelist;
         pool.freelist = slot.0;
-        pool.in_use -= 1;
+        pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
         (*slot.0).data.assume_init_read()
     }
 
