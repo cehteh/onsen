@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::mem::MaybeUninit;
+use std::sync::atomic::{AtomicUsize, Ordering::Relaxed};
 
 use crate::*;
 
@@ -12,10 +14,10 @@ use crate::*;
 /// The Pool API is pretty low-level and frequently unsafe is intended to be used to build
 /// safe high level abstractions.
 pub struct Pool<T: Sized, const E: usize> {
-    blocks: [Option<Vec<Entry<T>>>; NUM_BLOCKS],
-    blocks_allocated: usize,
-    freelist: *mut Entry<T>,
-    in_use: usize,
+    blocks: RefCell<[Option<Vec<Entry<T>>>; NUM_BLOCKS]>,
+    blocks_allocated: AtomicUsize,
+    freelist: RefCell<*mut Entry<T>>,
+    in_use: AtomicUsize,
 }
 
 impl<T, const E: usize> Pool<T, E> {
@@ -24,48 +26,45 @@ impl<T, const E: usize> Pool<T, E> {
     pub fn new() -> Self {
         debug_assert!(E > 0);
         Self {
-            blocks: [(); NUM_BLOCKS].map(|_| None),
-            blocks_allocated: 0,
-            freelist: Entry::<T>::END_OF_FREELIST,
-            in_use: 0,
+            blocks: RefCell::new([(); NUM_BLOCKS].map(|_| None)),
+            blocks_allocated: AtomicUsize::new(0),
+            freelist: RefCell::new(Entry::<T>::END_OF_FREELIST),
+            in_use: AtomicUsize::new(0),
         }
     }
 
     /// Allocates a new entry, either from the freelist or by extending the pool.
     /// Returns Entry pointer tagged as UNINITIALIZED.
-    fn alloc_entry(&mut self) -> *mut Entry<T> {
-        if self.freelist != Entry::<T>::END_OF_FREELIST {
+    fn alloc_entry(&self) -> *mut Entry<T> {
+        let mut freelist = self.freelist.borrow_mut();
+        if *freelist != Entry::<T>::END_OF_FREELIST {
             // from freelist
-            let entry = self.freelist;
+            let entry = *freelist;
             unsafe {
                 debug_assert!(!(&*entry).is_allocated(), "Invalid freelist");
-                self.freelist = (*entry).descr;
+                *freelist = (*entry).descr;
                 (*entry).descr = Entry::<T>::UNINITIALIZED_SENTINEL;
             }
-            self.in_use += 1;
+            self.in_use.fetch_add(1, Relaxed);
             entry
         } else {
-            if self.blocks_allocated == 0
-                || self.blocks[self.blocks_allocated - 1]
-                    .as_ref()
-                    .unwrap()
-                    .len()
-                    == self.blocks[self.blocks_allocated - 1]
-                        .as_ref()
-                        .unwrap()
-                        .capacity()
+            let blocks_allocated = self.blocks_allocated.load(Relaxed);
+            let mut blocks = self.blocks.borrow_mut();
+            if self.blocks_allocated.load(Relaxed) == 0
+                || blocks[blocks_allocated - 1].as_ref().unwrap().len()
+                    == blocks[blocks_allocated - 1].as_ref().unwrap().capacity()
             {
-                self.blocks[self.blocks_allocated] =
-                    Some(Vec::with_capacity(E << self.blocks_allocated));
-                self.blocks_allocated += 1;
+                blocks[blocks_allocated] = Some(Vec::with_capacity(E << blocks_allocated));
+                self.blocks_allocated.fetch_add(1, Relaxed);
             }
 
-            let current_block = self.blocks[self.blocks_allocated - 1].as_mut().unwrap();
+            let blocks_allocated = self.blocks_allocated.load(Relaxed);
+            let current_block = blocks[blocks_allocated - 1].as_mut().unwrap();
             current_block.push(Entry {
                 data: MaybeUninit::uninit(),
                 descr: Entry::<T>::UNINITIALIZED_SENTINEL,
             });
-            self.in_use += 1;
+            self.in_use.fetch_add(1, Relaxed);
             current_block.last_mut().unwrap() as *mut Entry<T>
         }
     }
@@ -76,7 +75,7 @@ impl<T, const E: usize> Pool<T, E> {
     /// after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     #[inline]
-    pub fn alloc(&mut self, t: T) -> Slot<T> {
+    pub fn alloc(&self, t: T) -> Slot<T> {
         let entry = self.alloc_entry();
         unsafe {
             (*entry).data = MaybeUninit::new(t);
@@ -92,7 +91,7 @@ impl<T, const E: usize> Pool<T, E> {
     /// this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     #[inline]
-    pub fn alloc_uninit(&mut self) -> Slot<T> {
+    pub fn alloc_uninit(&self) -> Slot<T> {
         Slot(self.alloc_entry())
     }
 
@@ -109,30 +108,24 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    pub unsafe fn free(&mut self, slot: Slot<T>) {
+    pub unsafe fn free(&self, slot: Slot<T>) {
         self.free_by_ref(&slot);
     }
 
     /// Non consuming variant of `pool.free()`, allows freeing slots that are part of other
     /// structures while keeping Slot non-Copy. The slot must not be used after this.
-    ///
-    /// # Safety
-    ///
-    /// Slots must not be freed while references pointing to it.
-    ///
-    /// # Panics
-    ///
-    ///  * The slot is already free
-    ///  * The slot is invalid, not from this pool (debug only).
-    pub unsafe fn free_by_ref(&mut self, slot: &Slot<T>) {
-        debug_assert!(self.has_slot(&slot));
+    /// See `slot.free()` for details.
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn free_by_ref(&self, slot: &Slot<T>) {
+        debug_assert!(self.has_slot(slot));
         assert!(slot.is_allocated());
+        let mut freelist = self.freelist.borrow_mut();
         if slot.is_initialized() {
             (*slot.0).data.assume_init_drop();
         };
-        (*slot.0).descr = self.freelist;
-        self.freelist = slot.0;
-        self.in_use -= 1;
+        (*slot.0).descr = *freelist;
+        *freelist = slot.0;
+        self.in_use.fetch_sub(1, Relaxed);
     }
 
     /// Puts the given slot back into the freelist. Will not call the the destructor.
@@ -146,19 +139,21 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    pub unsafe fn forget(&mut self, slot: Slot<T>) {
+    pub unsafe fn forget(&self, slot: Slot<T>) {
         self.forget_by_ref(&slot);
     }
 
     /// Non consuming variant of `pool.forget()`, allows forgetting slots that are part of
     /// other structures while keeping Slot non-Copy.  The slot must not be used after this.
     /// See `slot.forget()` for details.
-    pub unsafe fn forget_by_ref(&mut self, slot: &Slot<T>) {
-        debug_assert!(self.has_slot(&slot));
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn forget_by_ref(&self, slot: &Slot<T>) {
+        debug_assert!(self.has_slot(slot));
         assert!(slot.is_allocated());
-        (*slot.0).descr = self.freelist;
-        self.freelist = slot.0;
-        self.in_use -= 1;
+        let mut freelist = self.freelist.borrow_mut();
+        (*slot.0).descr = *freelist;
+        *freelist = slot.0;
+        self.in_use.fetch_sub(1, Relaxed);
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -176,19 +171,21 @@ impl<T, const E: usize> Pool<T, E> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    pub unsafe fn take(&mut self, slot: Slot<T>) -> T {
+    pub unsafe fn take(&self, slot: Slot<T>) -> T {
         self.take_by_ref(&slot)
     }
 
     /// Non consuming variant of `pool.take()`, allows taking slots that are part of other
     /// structures while keeping Slot non-Copy.  The slot must not be used after this.  See
     /// `slot.take()` for details.
-    pub unsafe fn take_by_ref(&mut self, slot: &Slot<T>) -> T {
-        debug_assert!(self.has_slot(&slot));
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn take_by_ref(&self, slot: &Slot<T>) -> T {
+        debug_assert!(self.has_slot(slot));
         assert!(slot.is_initialized() && !slot.is_pinned());
-        (*slot.0).descr = self.freelist;
-        self.freelist = slot.0;
-        self.in_use -= 1;
+        let mut freelist = self.freelist.borrow_mut();
+        (*slot.0).descr = *freelist;
+        *freelist = slot.0;
+        self.in_use.fetch_sub(1, Relaxed);
         (*slot.0).data.assume_init_read()
     }
 
@@ -204,8 +201,9 @@ impl<T, const E: usize> Pool<T, E> {
 
     /// Returns true when the slot is in self.
     pub fn has_slot(&self, slot: &Slot<T>) -> bool {
-        for block in (0..self.blocks_allocated).rev() {
-            if self.blocks[block].as_ref().unwrap()[..]
+        let blocks_allocated = self.blocks_allocated.load(Relaxed);
+        for block in (0..blocks_allocated).rev() {
+            if self.blocks.borrow()[block].as_ref().unwrap()[..]
                 .as_ptr_range()
                 .contains(&(slot.0 as *const Entry<T>))
             {
@@ -229,7 +227,11 @@ impl<T, const E: usize> Drop for Pool<T, E> {
     #[cfg(debug_assertions)]
     fn drop(&mut self) {
         if !std::thread::panicking() {
-            assert_eq!(self.in_use, 0, "Dropping Pool while Slots are still in use");
+            assert_eq!(
+                self.in_use.load(Relaxed),
+                0,
+                "Dropping Pool while Slots are still in use"
+            );
         }
     }
 

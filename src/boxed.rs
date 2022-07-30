@@ -1,4 +1,3 @@
-//! onsen::Box is WIP! many trait implementations of the std::boxed::Box are still missing.
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
@@ -14,7 +13,7 @@ use crate::*;
 /// ensure that the destructor is called and the memory is given back to the pool.
 pub struct Box<'a, T, const E: usize> {
     slot: Slot<T>,
-    pool: &'a mut Pool<T, E>,
+    pool: &'a Pool<T, E>,
 }
 
 impl<T, const E: usize> Box<'_, T, E> {
@@ -35,7 +34,7 @@ impl<T, const E: usize> Box<'_, T, E> {
 impl<'a, T: Default, const E: usize> Pool<T, E> {
     /// Allocate a default initialized Box from a Pool.
     #[inline]
-    pub fn default_box(&'a mut self) -> Box<'a, T, E> {
+    pub fn default_box(&'a self) -> Box<'a, T, E> {
         self.alloc_box(T::default())
     }
 }
@@ -43,7 +42,7 @@ impl<'a, T: Default, const E: usize> Pool<T, E> {
 impl<'a, T, const E: usize> Pool<T, E> {
     /// Allocate a Box from a Pool.
     #[inline]
-    pub fn alloc_box(&'a mut self, t: T) -> Box<'a, T, E> {
+    pub fn alloc_box(&'a self, t: T) -> Box<'a, T, E> {
         Box {
             slot: self.alloc(t),
             pool: self,
@@ -228,22 +227,34 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let mut pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str, 128> = Pool::new();
         let _mybox = pool.alloc_box("Boxed");
     }
 
     #[test]
     fn deref() {
-        let mut pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str, 128> = Pool::new();
         let mybox = pool.alloc_box("Boxed");
         assert_eq!(*mybox, "Boxed");
     }
 
     #[test]
     fn deref_mut() {
-        let mut pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str, 128> = Pool::new();
         let mut mybox = pool.alloc_box("Boxed");
         *mybox = "Changed";
         assert_eq!(*mybox, "Changed");
     }
+
+    #[test]
+    fn eq() {
+        let pool: Pool<&str, 128> = Pool::new();
+        let box1 = pool.alloc_box("Boxed");
+        let box2 = pool.alloc_box("Boxed");
+        let box3 = pool.alloc_box("Boxed again");
+        assert_eq!(box1, box2);
+        assert_ne!(box1, box3);
+    }
+
+
 }
