@@ -3,7 +3,6 @@
 Onsen provides a hot Pool for objects.  In most cases allocation from this Pool is faster and
 offers better locality than the standard allocator.
 
-A Box implementation for safe handling of Pool allocated objects is included.
 
 # Details
 
@@ -14,6 +13,11 @@ of cache lines, pages, huge pages, whatever makes most sense. There is a Optimal
 trait which does this calculations. Memory allocation happens only when necessary, creating a
 pool is a cheap operation.
 
+
+# Box and Rc
+
+Onsen comes with its own Box and Rc implementations that wrap the underlying Pool in a safe
+way.
 
 # Slots and safety
 

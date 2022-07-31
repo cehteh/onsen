@@ -39,6 +39,9 @@ use entry::*;
 mod boxed;
 pub use boxed::*;
 
+mod refcounted;
+pub use refcounted::*;
+
 /// Helper trait for configuring the optimal block size E. Note that Objects must be smaller
 /// than the granularity picked here. Ideally much smaller (by a factor greater than 10).
 pub trait OptimalBlockSize {
