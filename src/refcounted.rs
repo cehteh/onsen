@@ -56,7 +56,7 @@ impl<'a, T: Default, const E: usize> Pool<RcInner<T>, E> {
 impl<'a, T, const E: usize> Pool<RcInner<T>, E> {
     /// Allocate a Box from a Pool.
     #[inline]
-    pub fn alloc_rc(&'a mut self, t: T) -> Rc<'a, T, E> {
+    pub fn alloc_rc(&'a self, t: T) -> Rc<'a, T, E> {
         Rc {
             slot: self.alloc(RcInner::new(t)),
             pool: self,
@@ -292,20 +292,20 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let mut pool: Pool<_, 128> = Pool::new();
+        let pool: Pool<_, 128> = Pool::new();
         let _myrc = pool.alloc_rc("Rc");
     }
 
     #[test]
     fn macro_test() {
-        let mut pool = pool!(RcInner<&str>, PAGE);
+        let pool = pool!(RcInner<&str>, PAGE);
         let myrc = pool.alloc_rc("Rc");
         assert_eq!(*myrc, "Rc");
     }
 
     #[test]
     fn clone() {
-        let mut pool = pool!(RcInner<&str>, PAGE);
+        let pool = pool!(RcInner<&str>, PAGE);
         let myrc1 = pool.alloc_rc("Rc");
         let myrc2 = myrc1.clone();
         let myrc3 = Rc::clone(&myrc2);
@@ -318,7 +318,7 @@ mod tests {
 
     #[test]
     fn deref_mut() {
-        let mut pool = pool!(RcInner<&str>, PAGE);
+        let pool = pool!(RcInner<&str>, PAGE);
         let mut myrc = pool.alloc_rc("Rc");
         *myrc = "Changed";
         assert_eq!(*myrc, "Changed");
