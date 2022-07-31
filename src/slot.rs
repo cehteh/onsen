@@ -126,6 +126,16 @@ impl<T> Slot<T> {
         Self((id & !0xffff000000000007) as *mut Entry<T>)
     }
 
+    /// Copies a slot handle.
+    ///
+    /// # Safety
+    ///
+    /// Slots must be given back to the pool only once which as well invalidates any copies.
+    #[inline]
+    pub unsafe fn copy(&self) -> Slot<T> {
+        Slot(self.0)
+    }
+
     /// Returns true when self belong to pool.
     #[inline]
     pub fn is_in_pool<const E: usize>(&self, pool: &Pool<T, E>) -> bool {
