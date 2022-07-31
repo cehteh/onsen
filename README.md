@@ -16,8 +16,8 @@ pool is a cheap operation.
 
 # Box and Rc
 
-Onsen comes with its own Box and Rc implementations that wrap the underlying Pool in a safe
-way.
+Onsen comes with its own Box and Rc/Weak implementations that wrap the underlying Pool in a
+safe way.
 
 # Slots and safety
 

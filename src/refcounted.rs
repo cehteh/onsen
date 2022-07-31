@@ -26,7 +26,18 @@ impl<T, const E: usize> Rc<'_, T, E> {
 
     /// Associated function that returns the number of weak counters of this Rc.
     pub fn weak_count(this: &Self) -> usize {
-        this.slot.get().strong_count.get()
+        this.slot.get().weak_count.get()
+    }
+}
+
+impl<'a, T, const E: usize> Rc<'a, T, E> {
+    /// Creates a Weak reference from a Rc.
+    pub fn downgrade(this: &Self) -> Weak<'a, T, E> {
+        this.slot.get().inc_weak();
+        Weak::<'a, T, E> {
+            slot: unsafe { this.slot.copy() },
+            pool: this.pool,
+        }
     }
 }
 
@@ -34,16 +45,11 @@ impl<T, const E: usize> Clone for Rc<'_, T, E> {
     fn clone(&self) -> Self {
         self.slot.get().inc_strong();
         Self {
-            slot: Slot(self.slot.0),
+            slot: unsafe { self.slot.copy() },
             pool: self.pool,
         }
     }
 }
-
-// pub struct Weak<'a, T, const E: usize> {
-//     slot: Slot<RcInner<T>>,
-//     pool: &'a mut Pool<RcInner<T>, E>,
-// }
 
 impl<'a, T: Default, const E: usize> Pool<RcInner<T>, E> {
     /// Allocate a default initialized Rc from a Pool.
@@ -243,6 +249,70 @@ impl<T, const E: usize> fmt::Pointer for Rc<'_, T, E> {
     }
 }
 
+/// Weak references do not keep the object alive.
+pub struct Weak<'a, T, const E: usize> {
+    slot: Slot<RcInner<T>>,
+    pool: &'a Pool<RcInner<T>, E>,
+}
+
+impl<T, const E: usize> Weak<'_, T, E> {
+    /// Associated function that returns the number of strong counters of this Weak.
+    pub fn strong_count(&self) -> usize {
+        self.slot.get().strong_count.get()
+    }
+
+    /// Associated function that returns the number of weak counters of this Weak.
+    pub fn weak_count(&self) -> usize {
+        self.slot.get().weak_count.get()
+    }
+}
+
+impl<'a, T, const E: usize> Weak<'a, T, E> {
+    /// Tries to create a Rc from a Weak reference. Fails when the strong count was zero.
+    pub fn upgrade(&self) -> Option<Rc<'a, T, E>> {
+        if self.strong_count() > 0 {
+            self.slot.get().inc_strong();
+            Some(Rc::<'a, T, E> {
+                slot: unsafe { self.slot.copy() },
+                pool: self.pool,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl<T, const E: usize> Clone for Weak<'_, T, E> {
+    fn clone(&self) -> Self {
+        self.slot.get().inc_weak();
+        Self {
+            slot: unsafe { self.slot.copy() },
+            pool: self.pool,
+        }
+    }
+}
+
+impl<T, const E: usize> Drop for Weak<'_, T, E> {
+    #[inline]
+    fn drop(&mut self) {
+        self.slot.get().dec_weak();
+
+        if self.slot.get_mut().strong_count.get() == 0 {
+            if self.slot.get_mut().weak_count.get() == 0 {
+                // no references exist, can be freed completely
+                unsafe {
+                    self.pool.free_by_ref(&self.slot);
+                }
+            } else {
+                // only weak references exist, drop in place
+                unsafe {
+                    self.slot.get_mut().data.assume_init_drop();
+                }
+            }
+        }
+    }
+}
+
 // TODO: better way to hide this from the api
 #[allow(missing_docs)]
 pub struct RcInner<T> {
@@ -275,14 +345,12 @@ impl<T> RcInner<T> {
 
     #[inline]
     fn inc_weak(&self) {
-        self.strong_count
-            .set(self.strong_count.get().wrapping_add(1));
+        self.weak_count.set(self.weak_count.get().wrapping_add(1));
     }
 
     #[inline]
     fn dec_weak(&self) {
-        self.strong_count
-            .set(self.strong_count.get().wrapping_sub(1));
+        self.weak_count.set(self.weak_count.get().wrapping_sub(1));
     }
 }
 
@@ -322,5 +390,18 @@ mod tests {
         let mut myrc = pool.alloc_rc("Rc");
         *myrc = "Changed";
         assert_eq!(*myrc, "Changed");
+    }
+
+    #[test]
+    fn weak() {
+        let pool = pool!(RcInner<&str>, PAGE);
+        let myrc = pool.alloc_rc("Rc");
+        let weak = Rc::downgrade(&myrc);
+        assert_eq!(weak.strong_count(), 1);
+        assert_eq!(weak.weak_count(), 1);
+        let strong = weak.upgrade().unwrap();
+        assert_eq!(Rc::strong_count(&strong), 2);
+        assert_eq!(myrc, strong);
+        assert_eq!(*strong, "Rc");
     }
 }
