@@ -262,7 +262,7 @@ impl<T, const E: usize> Drop for PoolInner<T, E> {
 #[macro_export]
 macro_rules! pool {
     ($TYPE:ty, $BLOCKSIZE:ident) => {
-        Pool::<$TYPE, { <$TYPE>::$BLOCKSIZE }>::new()
+        $crate::Pool::<$TYPE, { <$TYPE as $crate::OptimalBlockSize>::$BLOCKSIZE }>::new()
     };
 }
 
