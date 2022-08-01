@@ -56,3 +56,16 @@ only run in debug mode. Few things can not be asserted and are guarded by unsafe
      and `Slot::from_u64_masked()`.
   9. The NaN tagging facilities allow to duplicate slots which is not supported. Be careful
      when convert an u64 back to a Slot.
+
+
+# Benchmarking
+
+Onsen uses criterion for benchmarking, since onsen is made for singlethreaded application its
+best to be tested when locked on a single CPU core (nowadays CPU cores have different
+performance characteristics).
+
+```shell,ignore
+taskset 2 cargo bench
+```
+
+Will produce `target/criterion/report/index.html`.
