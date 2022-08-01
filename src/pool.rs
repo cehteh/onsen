@@ -235,15 +235,11 @@ impl<T, const E: usize> PoolInner<T, E> {
     }
 }
 
-impl<T, const E: usize> Drop for Pool<T, E> {
+impl<T, const E: usize> Drop for PoolInner<T, E> {
     #[cfg(debug_assertions)]
     fn drop(&mut self) {
         if !std::thread::panicking() {
-            assert_eq!(
-                self.0.borrow().in_use,
-                0,
-                "Dropping Pool while Slots are still in use"
-            );
+            assert_eq!(self.in_use, 0, "Dropping Pool while Slots are still in use");
         }
     }
 
