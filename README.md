@@ -62,9 +62,11 @@ only run in debug mode. Few things can not be asserted and are guarded by unsafe
 
 Onsen uses criterion for benchmarking, since onsen is made for singlethreaded application its
 best to be tested when locked on a single CPU core (nowadays CPU cores have different
-performance characteristics).
+performance characteristics). At higher priority so it wont be disturbed as much from other
+programs. On Linux you may do something like:
 
 ```shell,ignore
+sudo renice -15 $$
 taskset 2 cargo bench
 ```
 

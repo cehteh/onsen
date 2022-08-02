@@ -77,7 +77,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     drop(baseline);
     let mut baseline = c.benchmark_group("baseline keep");
 
-    for size in [1000usize, 5000usize, 10000usize, 50000usize, 100000usize].iter() {
+    for size in [1000, 5000, 10000, 30000, 50000, 75000, 100000].iter() {
         baseline.throughput(Throughput::Elements(*size as u64));
 
         baseline.bench_with_input(BenchmarkId::new("rust box", size), &size, {
@@ -101,7 +101,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     drop(baseline);
     let mut baseline = c.benchmark_group("baseline with 50 percent drop");
 
-    for size in [1000usize, 5000usize, 10000usize, 50000usize, 100000usize].iter() {
+    for size in [1000, 5000, 10000, 30000, 50000, 75000, 100000].iter() {
         baseline.throughput(Throughput::Elements(*size as u64));
 
         baseline.bench_with_input(BenchmarkId::new("rust box", size), &size, {

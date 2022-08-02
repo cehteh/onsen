@@ -1,6 +1,6 @@
 [package]
 name = "onsen"
-version = "0.6.1"
+version = "0.6.2"
 edition = "2021"
 authors = ["Christian Thäter <ct@pipapo.org>"]
 description = "Memory pool"
@@ -9,10 +9,14 @@ repository = "https://github.com/cehteh/onsen.git"
 keywords = ["allocator", "pool"]
 
 [dev-dependencies]
-criterion = "0.3"
+criterion = { version = "0.3", features = ["html_reports"]}
 
 [[bench]]
 name = "baseline"
+harness = false
+
+[[bench]]
+name = "simulated_work"
 harness = false
 
 [badges]
