@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::mem::MaybeUninit;
+use std::mem::ManuallyDrop;
 
 use crate::*;
 
@@ -66,7 +66,7 @@ impl<T, const E: usize> Pool<T, E> {
             let block = pool.blocks[blocks_allocated_minus_1].as_mut().unwrap();
 
             block.push(Entry {
-                data: MaybeUninit::uninit(),
+                maybe_data: MaybeData { uninit: () },
                 descr: Entry::<T>::UNINITIALIZED_SENTINEL,
             });
             block.last_mut().unwrap() as *mut Entry<T>
@@ -82,7 +82,9 @@ impl<T, const E: usize> Pool<T, E> {
     pub fn alloc(&self, t: T) -> Slot<T> {
         let entry = self.alloc_entry();
         unsafe {
-            (*entry).data = MaybeUninit::new(t);
+            (*entry).maybe_data = MaybeData {
+                data: ManuallyDrop::new(t),
+            };
             (*entry).descr = Entry::<T>::INITIALIZED_SENTINEL;
         }
         Slot(entry)
@@ -125,7 +127,7 @@ impl<T, const E: usize> Pool<T, E> {
         debug_assert!(pool.has_slot(slot));
         assert!(slot.is_allocated());
         if slot.is_initialized() {
-            (*slot.0).data.assume_init_drop();
+            ManuallyDrop::drop(&mut (*slot.0).maybe_data.data);
         };
         (*slot.0).descr = pool.freelist;
         pool.freelist = slot.0;
@@ -190,7 +192,7 @@ impl<T, const E: usize> Pool<T, E> {
         (*slot.0).descr = pool.freelist;
         pool.freelist = slot.0;
         pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
-        (*slot.0).data.assume_init_read()
+        ManuallyDrop::take(&mut (*slot.0).maybe_data.data)
     }
 
     // fn block_is_empty() -> bool {
@@ -276,12 +278,14 @@ impl<T, const E: usize> Default for Pool<T, E> {
 #[test]
 fn entry_layout() {
     let e = Entry {
-        data: MaybeUninit::new(String::from("Hello")),
+        maybe_data: MaybeData {
+            data: ManuallyDrop::new(String::from("Hello")),
+        },
         descr: std::ptr::null_mut(),
     };
     assert_eq!(
         (&e) as *const Entry<String> as usize,
-        (&e.data) as *const MaybeUninit<String> as usize
+        (&e.maybe_data) as *const MaybeData<String> as usize
     );
 }
 

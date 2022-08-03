@@ -1,11 +1,32 @@
-use std::mem::MaybeUninit;
+use std::mem::ManuallyDrop;
 
 use crate::*;
+
+/// Special purpose version of MaybeUninit that may hold a forward pointer of the linked
+/// freelist when the Slot is free.
+// TODO: #[repr(transparent)]
+#[repr(C)]
+pub union MaybeData<T> {
+    pub(crate) uninit: (),
+    pub(crate) data: ManuallyDrop<T>,
+    pub(crate) forward: *mut Entry<T>,
+}
+
+impl<T> MaybeData<T> {
+    /// Overwrites the potentially uninitialized MaybeData with new data without dropping the
+    /// old value. Returns a reference to the new data.
+    #[inline(always)]
+    pub fn write(&mut self, val: T) -> &mut T {
+        self.data = ManuallyDrop::new(val);
+        // SAFETY: We just initialized this value.
+        unsafe { &mut self.data }
+    }
+}
 
 /// Entries within a Pool.
 #[repr(C, align(8))]
 pub(crate) struct Entry<T> {
-    pub(crate) data: MaybeUninit<T>,
+    pub(crate) maybe_data: MaybeData<T>,
     pub(crate) descr: *mut Entry<T>,
 }
 

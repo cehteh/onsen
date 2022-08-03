@@ -1,4 +1,3 @@
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 use crate::*;
@@ -25,9 +24,9 @@ impl<T> Slot<T> {
     ///
     ///  * The slot does not contain an uninitialized object
     #[inline]
-    pub unsafe fn get_uninit(&mut self) -> &mut MaybeUninit<T> {
+    pub unsafe fn get_uninit(&mut self) -> &mut MaybeData<T> {
         assert!(self.is_uninitialized());
-        &mut (*self.0).data
+        &mut (*self.0).maybe_data
     }
 
     /// Tags the object at slot as initialized, return a reference to the data.
@@ -43,7 +42,7 @@ impl<T> Slot<T> {
     pub unsafe fn assume_init(&mut self) -> &T {
         assert!(self.is_uninitialized());
         (*self.0).descr = Entry::<T>::INITIALIZED_SENTINEL;
-        (*self.0).data.assume_init_ref()
+        &(*self.0).maybe_data.data
     }
 
     /// Get a immutable reference to the object in slot, where slot must hold an initialized
@@ -55,7 +54,7 @@ impl<T> Slot<T> {
     #[inline]
     pub fn get(&self) -> &T {
         assert!(self.is_initialized());
-        unsafe { (*self.0).data.assume_init_ref() }
+        unsafe { &(*self.0).maybe_data.data }
     }
 
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
@@ -69,7 +68,7 @@ impl<T> Slot<T> {
         assert!(self.is_initialized() && !self.is_pinned());
         unsafe {
             (*self.0).descr = Entry::<T>::REFERENCED_SENTINEL;
-            (*self.0).data.assume_init_mut()
+            &mut (*self.0).maybe_data.data
         }
     }
 
@@ -86,7 +85,7 @@ impl<T> Slot<T> {
         assert!(self.is_initialized() && !self.is_referenced());
         unsafe {
             (*self.0).descr = Entry::<T>::PINNED_SENTINEL;
-            Pin::new_unchecked((*self.0).data.assume_init_mut())
+            Pin::new_unchecked(&mut (*self.0).maybe_data.data)
         }
     }
 
