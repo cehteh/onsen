@@ -9,7 +9,7 @@ use crate::*;
 pub union MaybeData<T> {
     pub(crate) uninit: (),
     pub(crate) data: ManuallyDrop<T>,
-    pub(crate) forward: *mut Entry<T>,
+    pub(crate) fwd_ptr: *mut Entry<T>,
 }
 
 impl<T> MaybeData<T> {
@@ -27,7 +27,7 @@ impl<T> MaybeData<T> {
 #[repr(C, align(8))]
 pub(crate) struct Entry<T> {
     pub(crate) maybe_data: MaybeData<T>,
-    pub(crate) descr: *mut Entry<T>,
+    pub(crate) descr_rev_ptr: *mut Entry<T>,
 }
 
 impl<T> Entry<T> {
@@ -40,7 +40,7 @@ impl<T> Entry<T> {
     /// Returns true when the slot at 'slot' is allocated and false when it is free.
     pub fn is_allocated(&self) -> bool {
         matches!(
-            self.descr as usize,
+            self.descr_rev_ptr as usize,
             UNINITIALIZED | INITIALIZED | REFERENCED | PINNED
         )
     }
@@ -48,22 +48,25 @@ impl<T> Entry<T> {
     /// Returns true when the slot is uninitialized,
     /// false on anything else.
     pub fn is_uninitialized(&self) -> bool {
-        matches!(self.descr as usize, UNINITIALIZED)
+        matches!(self.descr_rev_ptr as usize, UNINITIALIZED)
     }
 
     /// Returns true when the slot is initialized, got referenced or pinned.
     /// Returns false when the slot is uninitialized.
     pub fn is_initialized(&self) -> bool {
-        matches!(self.descr as usize, INITIALIZED | REFERENCED | PINNED)
+        matches!(
+            self.descr_rev_ptr as usize,
+            INITIALIZED | REFERENCED | PINNED
+        )
     }
 
     /// Returns true when the slot at 'slot' ever got referenced or pinned.
     pub fn is_referenced(&self) -> bool {
-        matches!(self.descr as usize, REFERENCED | PINNED)
+        matches!(self.descr_rev_ptr as usize, REFERENCED | PINNED)
     }
 
     /// Returns true when the slot at 'slot' ever got pinned.
     pub fn is_pinned(&self) -> bool {
-        matches!(self.descr as usize, PINNED)
+        matches!(self.descr_rev_ptr as usize, PINNED)
     }
 }

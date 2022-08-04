@@ -31,17 +31,10 @@ impl<T, const E: usize> Pool<T, E> {
     /// Returns Entry pointer tagged as UNINITIALIZED.
     fn alloc_entry(&self) -> *mut Entry<T> {
         let mut pool = self.0.borrow_mut();
-        if pool.freelist != Entry::<T>::END_OF_FREELIST {
-            // from freelist
-            let entry = pool.freelist;
-            unsafe {
-                debug_assert!(!(&*entry).is_allocated(), "Invalid freelist");
-                pool.freelist = (*entry).descr;
-                (*entry).descr = Entry::<T>::UNINITIALIZED_SENTINEL;
-            }
-            pool.in_use = pool.in_use.wrapping_add(1); // can never overflow
+        if let Some(entry) = pool.entry_from_freelist() {
             entry
         } else {
+            // get a new entry from the block
             let blocks_allocated_minus_1 = pool.blocks_allocated.wrapping_sub(1);
             if pool.blocks_allocated == 0
                 || unsafe {
@@ -67,7 +60,7 @@ impl<T, const E: usize> Pool<T, E> {
 
             block.push(Entry {
                 maybe_data: MaybeData { uninit: () },
-                descr: Entry::<T>::UNINITIALIZED_SENTINEL,
+                descr_rev_ptr: Entry::<T>::UNINITIALIZED_SENTINEL,
             });
             block.last_mut().unwrap() as *mut Entry<T>
         }
@@ -85,7 +78,7 @@ impl<T, const E: usize> Pool<T, E> {
             (*entry).maybe_data = MaybeData {
                 data: ManuallyDrop::new(t),
             };
-            (*entry).descr = Entry::<T>::INITIALIZED_SENTINEL;
+            (*entry).descr_rev_ptr = Entry::<T>::INITIALIZED_SENTINEL;
         }
         Slot(entry)
     }
@@ -125,13 +118,10 @@ impl<T, const E: usize> Pool<T, E> {
     pub unsafe fn free_by_ref(&self, slot: &Slot<T>) {
         let mut pool = self.0.borrow_mut();
         debug_assert!(pool.has_slot(slot));
-        assert!(slot.is_allocated());
         if slot.is_initialized() {
             ManuallyDrop::drop(&mut (*slot.0).maybe_data.data);
         };
-        (*slot.0).descr = pool.freelist;
-        pool.freelist = slot.0;
-        pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
+        pool.add_to_freelist(slot.0);
     }
 
     /// Puts the given slot back into the freelist. Will not call the the destructor.
@@ -156,10 +146,7 @@ impl<T, const E: usize> Pool<T, E> {
     pub unsafe fn forget_by_ref(&self, slot: &Slot<T>) {
         let mut pool = self.0.borrow_mut();
         debug_assert!(pool.has_slot(slot));
-        assert!(slot.is_allocated());
-        (*slot.0).descr = pool.freelist;
-        pool.freelist = slot.0;
-        pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
+        pool.add_to_freelist(slot.0);
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -189,10 +176,9 @@ impl<T, const E: usize> Pool<T, E> {
         let mut pool = self.0.borrow_mut();
         debug_assert!(pool.has_slot(slot));
         assert!(slot.is_initialized() && !slot.is_pinned());
-        (*slot.0).descr = pool.freelist;
-        pool.freelist = slot.0;
-        pool.in_use = pool.in_use.wrapping_sub(1); // can never underflow
-        ManuallyDrop::take(&mut (*slot.0).maybe_data.data)
+        let ret = ManuallyDrop::take(&mut (*slot.0).maybe_data.data);
+        pool.add_to_freelist(slot.0);
+        ret
     }
 
     // fn block_is_empty() -> bool {
@@ -234,6 +220,64 @@ impl<T, const E: usize> PoolInner<T, E> {
             }
         }
         false
+    }
+
+    fn freelist_is_empty(&self) -> bool {
+        self.freelist == Entry::<T>::END_OF_FREELIST
+    }
+
+    // Remove the tail from the freelist if not empty, tag it as uninitialized
+    fn entry_from_freelist(&mut self) -> Option<*mut Entry<T>> {
+        let entry = self.freelist;
+        if entry != Entry::<T>::END_OF_FREELIST {
+            unsafe {
+                debug_assert!(!(&*entry).is_allocated(), "Invalid freelist");
+
+                let next = (*entry).maybe_data.fwd_ptr;
+
+                self.freelist = if next == entry {
+                    // single node in freelist
+                    Entry::<T>::END_OF_FREELIST
+                } else {
+                    // unlink from list
+                    let prev = (*entry).descr_rev_ptr;
+                    (*next).descr_rev_ptr = (*entry).descr_rev_ptr;
+                    (*prev).maybe_data.fwd_ptr = (*entry).maybe_data.fwd_ptr;
+                    prev
+                };
+                (*entry).descr_rev_ptr = Entry::<T>::UNINITIALIZED_SENTINEL;
+            }
+
+            self.in_use = self.in_use.wrapping_add(1); // can never overflow
+            Some(entry)
+        } else {
+            None
+        }
+    }
+
+    // put entry back into the freelist, destroys the descriptor sentinel by doing so
+    unsafe fn add_to_freelist(&mut self, entry: *mut Entry<T>) {
+        assert!(entry.as_ref().unwrap().is_allocated());
+        if self.freelist_is_empty() {
+            // first node, cyclic pointing to itself
+            (*entry).descr_rev_ptr = entry;
+            (*entry).maybe_data.fwd_ptr = entry;
+        } else {
+            // locality
+            // TODO:
+
+            // no locality, add to the tail of the freelist
+            let tail = self.freelist;
+            let head = (*tail).maybe_data.fwd_ptr;
+
+            (*entry).descr_rev_ptr = tail;
+            (*entry).maybe_data.fwd_ptr = head;
+
+            (*head).descr_rev_ptr = entry;
+            (*tail).maybe_data.fwd_ptr = entry;
+        }
+        self.freelist = entry;
+        self.in_use = self.in_use.wrapping_sub(1); // can never underflow
     }
 }
 
@@ -281,7 +325,7 @@ fn entry_layout() {
         maybe_data: MaybeData {
             data: ManuallyDrop::new(String::from("Hello")),
         },
-        descr: std::ptr::null_mut(),
+        descr_rev_ptr: std::ptr::null_mut(),
     };
     assert_eq!(
         (&e) as *const Entry<String> as usize,

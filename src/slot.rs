@@ -41,7 +41,7 @@ impl<T> Slot<T> {
     #[inline]
     pub unsafe fn assume_init(&mut self) -> &T {
         assert!(self.is_uninitialized());
-        (*self.0).descr = Entry::<T>::INITIALIZED_SENTINEL;
+        (*self.0).descr_rev_ptr = Entry::<T>::INITIALIZED_SENTINEL;
         &(*self.0).maybe_data.data
     }
 
@@ -67,7 +67,7 @@ impl<T> Slot<T> {
     pub fn get_mut(&mut self) -> &mut T {
         assert!(self.is_initialized() && !self.is_pinned());
         unsafe {
-            (*self.0).descr = Entry::<T>::REFERENCED_SENTINEL;
+            (*self.0).descr_rev_ptr = Entry::<T>::REFERENCED_SENTINEL;
             &mut (*self.0).maybe_data.data
         }
     }
@@ -84,7 +84,7 @@ impl<T> Slot<T> {
     pub fn pin(&mut self) -> Pin<&mut T> {
         assert!(self.is_initialized() && !self.is_referenced());
         unsafe {
-            (*self.0).descr = Entry::<T>::PINNED_SENTINEL;
+            (*self.0).descr_rev_ptr = Entry::<T>::PINNED_SENTINEL;
             Pin::new_unchecked(&mut (*self.0).maybe_data.data)
         }
     }
