@@ -8,7 +8,7 @@ fn rust_box_drop() {
     black_box(Box::new(0u64));
 }
 
-fn onsen_box_drop<const E: usize>(pool: &onsen::Pool<u64, E>) {
+fn onsen_box_drop(pool: &onsen::Pool<u64>) {
     black_box(pool.alloc_box(0u64));
 }
 
@@ -20,7 +20,7 @@ fn rust_box_many(howmany: usize) {
     }
 }
 
-fn onsen_box_many<'a, const E: usize>(howmany: usize, pool: &'a onsen::Pool<u64, E>) {
+fn onsen_box_many<'a>(howmany: usize, pool: &'a onsen::Pool<u64>) {
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
         keep.push(pool.alloc_box(0u64));
@@ -48,11 +48,7 @@ fn rust_box_many_with_drop(howmany: usize, drop_percent: u32) {
     }
 }
 
-fn onsen_box_many_with_drop<'a, const E: usize>(
-    howmany: usize,
-    drop_percent: u32,
-    pool: &'a onsen::Pool<u64, E>,
-) {
+fn onsen_box_many_with_drop<'a>(howmany: usize, drop_percent: u32, pool: &'a onsen::Pool<u64>) {
     let mut state = 0xbabeface_u32;
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
@@ -70,7 +66,8 @@ fn criterion_benchmark(c: &mut Criterion) {
     baseline.bench_function("rust box drop", |b| b.iter(|| rust_box_drop()));
 
     baseline.bench_function("onsen box drop", {
-        let pool = onsen::pool!(u64, PAGE);
+        let pool: onsen::Pool<u64> = onsen::Pool::new();
+        pool.with_min_entries(1000);
         move |b| b.iter(|| onsen_box_drop(&pool))
     });
 
@@ -89,7 +86,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
 
         baseline.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
-            let pool = onsen::pool!(u64, PAGE);
+            let pool: onsen::Pool<u64> = onsen::Pool::new();
+            pool.with_min_entries(1000);
             move |b, &s| {
                 b.iter(|| {
                     onsen_box_many(*s, &pool);
@@ -113,7 +111,8 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
 
         baseline.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
-            let pool = onsen::pool!(u64, PAGE);
+            let pool: onsen::Pool<u64> = onsen::Pool::new();
+            pool.with_min_entries(1000);
             move |b, &s| {
                 b.iter(|| {
                     onsen_box_many_with_drop(*s, 50, &pool);

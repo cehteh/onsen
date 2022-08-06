@@ -21,11 +21,8 @@ pub(crate) const INITIALIZED: usize = 3;
 /// Uninitialized slot
 pub(crate) const UNINITIALIZED: usize = 4;
 
-// best guess values, eventually these should be configured properly
-const CACHELINE_SIZE: usize = 128;
-const PAGE_SIZE: usize = 4096;
-const HUGEPAGE_SIZE: usize = 2097152; // 2MB
-const ONEGIGABYTE_SIZE: usize = 1073741824;
+mod block;
+use block::*;
 
 mod pool;
 pub use pool::*;
@@ -42,43 +39,13 @@ pub use boxed::*;
 mod refcounted;
 pub use refcounted::*;
 
-/// Helper trait for configuring the optimal block size E. Note that Objects must be smaller
-/// than the granularity picked here. Ideally much smaller (by a factor greater than 10).
-pub trait OptimalBlockSize {
-    /// Make E big enough to fill a single cacheline. Good for small T and highly dynamic
-    /// memory usage where that also may see very little memory usage.
-    const CACHELINE: usize;
-    /// Make E big enough to fill a memory page. Possibly the best for almost any use case as
-    /// long the stored objects are reasonable small (smaller than ~500 Bytes).
-    const PAGE: usize;
-    /// Make E big enough to fill a memory hugepage. Better suited for bigger objects (more
-    /// than ~500 Bytes) or when a lot allocations are expected.
-    const HUGEPAGE: usize;
-    /// Make E big enough to fill 1GB of memory. Good suited for big objects and when a
-    /// lot allocations are expected.
-    const ONEGIGABYTE: usize;
-}
-
-impl<T: Sized> OptimalBlockSize for T {
-    const CACHELINE: usize = CACHELINE_SIZE / std::mem::size_of::<Entry<T>>();
-    const PAGE: usize = PAGE_SIZE / std::mem::size_of::<Entry<T>>();
-    const HUGEPAGE: usize = HUGEPAGE_SIZE / std::mem::size_of::<Entry<T>>();
-    const ONEGIGABYTE: usize = ONEGIGABYTE_SIZE / std::mem::size_of::<Entry<T>>();
-}
-
 #[cfg(test)]
 mod tests {
     use crate::*;
 
     #[test]
-    fn optimal_size() {
-        let _pool: Pool<&str, { <&str>::PAGE }> = Pool::new();
-        let _pool = pool!(&str, PAGE);
-    }
-
-    #[test]
     fn alloc_free() {
-        let pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str> = Pool::new();
 
         let memory = pool.alloc("Hello Memory");
         unsafe {
@@ -88,7 +55,7 @@ mod tests {
 
     #[test]
     fn pool_leak() {
-        let pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str> = Pool::new();
 
         let _memory = pool.alloc("Hello Memory");
 
@@ -97,7 +64,7 @@ mod tests {
 
     #[test]
     fn alloc_access() {
-        let pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str> = Pool::new();
 
         let mut memory = pool.alloc("Hello Memory");
 
@@ -112,7 +79,7 @@ mod tests {
     #[test]
     fn alloc_more() {
         let mut slots = Vec::new();
-        let pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str> = Pool::new();
 
         for _i in 0..1000 {
             slots.push(pool.alloc("Hello Memory"));
@@ -126,7 +93,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn alloc_pincheck() {
-        let pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str> = Pool::new();
 
         let mut memory = pool.alloc("Hello Memory");
 
@@ -136,7 +103,7 @@ mod tests {
 
     #[test]
     fn alloc_uninit() {
-        let pool: Pool<&str, 128> = Pool::new();
+        let pool: Pool<&str> = Pool::new();
 
         let mut memory = pool.alloc_uninit();
 

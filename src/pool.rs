@@ -12,58 +12,35 @@ use crate::*;
 ///
 /// The Pool API is pretty low-level and frequently unsafe is intended to be used to build
 /// safe high level abstractions.
-pub struct Pool<T: Sized, const E: usize>(pub(crate) RefCell<PoolInner<T, E>>);
+pub struct Pool<T: Sized>(pub(crate) RefCell<PoolInner<T>>);
 
-impl<T, const E: usize> Pool<T, E> {
+impl<T> Pool<T> {
     /// Creates a new Pool for objects of type T with an initial block size of E.
     #[inline]
     pub fn new() -> Self {
-        debug_assert!(E > 0);
         Self(RefCell::new(PoolInner {
             blocks: [(); NUM_BLOCKS].map(|_| None),
             blocks_allocated: 0,
-            freelist: Entry::<T>::END_OF_FREELIST,
-            in_use: 0,
+            min_entries: 0,
         }))
+    }
+
+    /// Configures the minimum of entries the first block will hold. Must be called before the
+    /// first allocation is made, otherwise it has no effect. Can be used when the number of
+    /// entries that will be used is roughly guessable and or the size of entries is small.
+    /// Setting this improves cache locality.  Since blocks are allocated with exponentially
+    /// growing size this should be still small enough, approx 1/4 of the average number of
+    /// entries to be expected. The implementation will generously round this up, first to use
+    /// the bitmap words completely and then to make the blocksize (in bytes) the next power
+    /// of two.
+    pub fn with_min_entries(&self, min_entries: usize) {
+        self.0.borrow_mut().min_entries = min_entries;
     }
 
     /// Allocates a new entry, either from the freelist or by extending the pool.
     /// Returns Entry pointer tagged as UNINITIALIZED.
     fn alloc_entry(&self) -> *mut Entry<T> {
-        let mut pool = self.0.borrow_mut();
-        if let Some(entry) = pool.entry_from_freelist() {
-            entry
-        } else {
-            // get a new entry from the block
-            let blocks_allocated_minus_1 = pool.blocks_allocated.wrapping_sub(1);
-            if pool.blocks_allocated == 0
-                || unsafe {
-                    // Safety: blocks_allocated_minus_1 will not be used on underflow
-                    let block = pool
-                        .blocks
-                        .get_unchecked(blocks_allocated_minus_1)
-                        .as_ref()
-                        .unwrap();
-
-                    block.len() == block.capacity()
-                }
-            {
-                let blocks_allocated = pool.blocks_allocated;
-                pool.blocks[blocks_allocated] =
-                    Some(Vec::with_capacity(E << pool.blocks_allocated));
-                pool.blocks_allocated = pool.blocks_allocated.wrapping_add(1);
-            }
-
-            pool.in_use = pool.in_use.wrapping_add(1); // can never overflow
-            let blocks_allocated_minus_1 = pool.blocks_allocated.wrapping_sub(1);
-            let block = pool.blocks[blocks_allocated_minus_1].as_mut().unwrap();
-
-            block.push(Entry {
-                maybe_data: MaybeData { uninit: () },
-                descr_rev_ptr: Entry::<T>::UNINITIALIZED_SENTINEL,
-            });
-            block.last_mut().unwrap() as *mut Entry<T>
-        }
+        self.0.borrow_mut().alloc_entry()
     }
 
     /// Allocates a new slot from the pool, initializes it with the supplied object and
@@ -117,11 +94,10 @@ impl<T, const E: usize> Pool<T, E> {
     #[allow(clippy::missing_safety_doc)]
     pub unsafe fn free_by_ref(&self, slot: &Slot<T>) {
         let mut pool = self.0.borrow_mut();
-        debug_assert!(pool.has_slot(slot));
         if slot.is_initialized() {
             ManuallyDrop::drop(&mut (*slot.0).maybe_data.data);
         };
-        pool.add_to_freelist(slot.0);
+        assert!(pool.add_to_freelist(slot.0), "Slot does not belong to pool");
     }
 
     /// Puts the given slot back into the freelist. Will not call the the destructor.
@@ -145,8 +121,7 @@ impl<T, const E: usize> Pool<T, E> {
     #[allow(clippy::missing_safety_doc)]
     pub unsafe fn forget_by_ref(&self, slot: &Slot<T>) {
         let mut pool = self.0.borrow_mut();
-        debug_assert!(pool.has_slot(slot));
-        pool.add_to_freelist(slot.0);
+        assert!(pool.add_to_freelist(slot.0), "Slot does not belong to pool");
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -174,145 +149,67 @@ impl<T, const E: usize> Pool<T, E> {
     #[allow(clippy::missing_safety_doc)]
     pub unsafe fn take_by_ref(&self, slot: &Slot<T>) -> T {
         let mut pool = self.0.borrow_mut();
-        debug_assert!(pool.has_slot(slot));
         assert!(slot.is_initialized() && !slot.is_pinned());
         let ret = ManuallyDrop::take(&mut (*slot.0).maybe_data.data);
-        pool.add_to_freelist(slot.0);
+        assert!(pool.add_to_freelist(slot.0), "Slot does not belong to pool");
         ret
     }
 
-    // fn block_is_empty() -> bool {
-    //     todo!()
-    // }
-    //
-    // /// Returns true when the pool holds no data.
-    // /// Useful for debugging/assertions
-    // pub fn is_empty(&self) -> bool {
-    //     todo!()
-    // }
-
     /// Destroys a Pool while leaking its allocated blocks.  The fast way out when one knows
     /// that allocations still exist and will never be returned to to the Pool. Either because
-    /// the program exits in some fast way or because the allocations are meant to stay
-    /// static.
+    /// the program exits in some fast way or because the allocations are meant to stay.
     #[inline]
     pub fn leak(self) {
         std::mem::forget(self);
     }
 }
 
-pub(crate) struct PoolInner<T: Sized, const E: usize> {
-    blocks: [Option<Vec<Entry<T>>>; NUM_BLOCKS],
+pub(crate) struct PoolInner<T: Sized> {
+    blocks: [Option<Block<T>>; NUM_BLOCKS],
     blocks_allocated: usize,
-    freelist: *mut Entry<T>,
-    in_use: usize,
+    min_entries: usize,
 }
 
-impl<T, const E: usize> PoolInner<T, E> {
-    /// Returns true when the slot is in self.
-    pub fn has_slot(&self, slot: &Slot<T>) -> bool {
-        for block in (0..self.blocks_allocated).rev() {
-            if self.blocks[block].as_ref().unwrap()[..]
-                .as_ptr_range()
-                .contains(&(slot.0 as *const Entry<T>))
+impl<T> PoolInner<T> {
+    // Allocate an entry from one of the Blocks, creating a new Block when required.
+    fn alloc_entry(&mut self) -> *mut Entry<T> {
+        for i in (0..self.blocks_allocated).rev() {
+            if let Some(entry) = unsafe { self.blocks[i].as_mut().unwrap_unchecked().alloc_entry() }
             {
+                return entry;
+            }
+        }
+
+        let bpos = self.blocks_allocated;
+        if bpos == 0 {
+            self.blocks[0] = Some(Block::new_first(self.min_entries));
+        } else {
+            self.blocks[bpos] = Some(Block::new_next(self.blocks[bpos - 1].as_ref().unwrap()));
+        }
+        self.blocks_allocated += 1;
+
+        unsafe {
+            self.blocks[bpos]
+                .as_mut()
+                .unwrap_unchecked()
+                .alloc_entry()
+                .unwrap_unchecked()
+        }
+    }
+
+    // Put entry back into the freelist, marks it as free. Returns 'false' when the entry does
+    // not belong to this Pool.
+    unsafe fn add_to_freelist(&mut self, entry: *mut Entry<T>) -> bool {
+        for i in (0..self.blocks_allocated).rev() {
+            if self.blocks[i].as_mut().unwrap_unchecked().free_entry(entry) {
                 return true;
             }
         }
         false
     }
-
-    fn freelist_is_empty(&self) -> bool {
-        self.freelist == Entry::<T>::END_OF_FREELIST
-    }
-
-    // Remove the tail from the freelist if not empty, tag it as uninitialized
-    fn entry_from_freelist(&mut self) -> Option<*mut Entry<T>> {
-        let entry = self.freelist;
-        if entry != Entry::<T>::END_OF_FREELIST {
-            unsafe {
-                debug_assert!(!(&*entry).is_allocated(), "Invalid freelist");
-
-                let next = (*entry).maybe_data.fwd_ptr;
-
-                self.freelist = if next == entry {
-                    // single node in freelist
-                    Entry::<T>::END_OF_FREELIST
-                } else {
-                    // unlink from list
-                    let prev = (*entry).descr_rev_ptr;
-                    (*next).descr_rev_ptr = (*entry).descr_rev_ptr;
-                    (*prev).maybe_data.fwd_ptr = (*entry).maybe_data.fwd_ptr;
-                    prev
-                };
-                (*entry).descr_rev_ptr = Entry::<T>::UNINITIALIZED_SENTINEL;
-            }
-
-            self.in_use = self.in_use.wrapping_add(1); // can never overflow
-            Some(entry)
-        } else {
-            None
-        }
-    }
-
-    // put entry back into the freelist, destroys the descriptor sentinel by doing so
-    unsafe fn add_to_freelist(&mut self, entry: *mut Entry<T>) {
-        assert!(entry.as_ref().unwrap().is_allocated());
-        if self.freelist_is_empty() {
-            // first node, cyclic pointing to itself
-            (*entry).descr_rev_ptr = entry;
-            (*entry).maybe_data.fwd_ptr = entry;
-        } else {
-            // locality
-            // TODO:
-
-            // no locality, add to the tail of the freelist
-            let tail = self.freelist;
-            let head = (*tail).maybe_data.fwd_ptr;
-
-            (*entry).descr_rev_ptr = tail;
-            (*entry).maybe_data.fwd_ptr = head;
-
-            (*head).descr_rev_ptr = entry;
-            (*tail).maybe_data.fwd_ptr = entry;
-        }
-        self.freelist = entry;
-        self.in_use = self.in_use.wrapping_sub(1); // can never underflow
-    }
 }
 
-impl<T, const E: usize> Drop for PoolInner<T, E> {
-    #[cfg(debug_assertions)]
-    fn drop(&mut self) {
-        if !std::thread::panicking() {
-            assert_eq!(self.in_use, 0, "Dropping Pool while Slots are still in use");
-        }
-    }
-
-    #[cfg(not(debug_assertions))]
-    fn drop(&mut self) {
-        for block in 0..self.blocks_allocated {
-            self.blocks[block].take().map(|v| v.leak());
-        }
-    }
-}
-
-/// Convenient helper that calls `Pool::new()` with a optimized size for E.
-///
-/// For example:
-/// ```
-/// # use onsen::*;
-/// struct Data(u64);
-/// let pool = pool!(Data, PAGE);
-/// ```
-#[macro_export]
-macro_rules! pool {
-    ($TYPE:ty, $BLOCKSIZE:ident) => {
-        $crate::Pool::<$TYPE, { <$TYPE as $crate::OptimalBlockSize>::$BLOCKSIZE }>::new()
-    };
-}
-
-impl<T, const E: usize> Default for Pool<T, E> {
+impl<T> Default for Pool<T> {
     fn default() -> Self {
         Self::new()
     }
@@ -339,6 +236,6 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let _pool: Pool<String, 128> = Pool::new();
+        let _pool: Pool<String> = Pool::new();
     }
 }

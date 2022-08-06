@@ -13,12 +13,12 @@ use crate::*;
 
 /// A reference counted smart pointer for Pool allocated objects. This wraps Slots in a safe
 /// way. Rc's need a Pool holding `RcInner<T>`, not `T`.
-pub struct Rc<'a, T, const E: usize> {
+pub struct Rc<'a, T> {
     slot: Slot<RcInner<T>>,
-    pool: &'a Pool<RcInner<T>, E>,
+    pool: &'a Pool<RcInner<T>>,
 }
 
-impl<T, const E: usize> Rc<'_, T, E> {
+impl<T> Rc<'_, T> {
     /// Associated function that returns the number of strong counters of this Rc.
     pub fn strong_count(this: &Self) -> usize {
         this.slot.get().strong_count.get()
@@ -30,18 +30,18 @@ impl<T, const E: usize> Rc<'_, T, E> {
     }
 }
 
-impl<'a, T, const E: usize> Rc<'a, T, E> {
+impl<'a, T> Rc<'a, T> {
     /// Creates a Weak reference from a Rc.
-    pub fn downgrade(this: &Self) -> Weak<'a, T, E> {
+    pub fn downgrade(this: &Self) -> Weak<'a, T> {
         this.slot.get().inc_weak();
-        Weak::<'a, T, E> {
+        Weak::<'a, T> {
             slot: unsafe { this.slot.copy() },
             pool: this.pool,
         }
     }
 }
 
-impl<T, const E: usize> Clone for Rc<'_, T, E> {
+impl<T> Clone for Rc<'_, T> {
     fn clone(&self) -> Self {
         self.slot.get().inc_strong();
         Self {
@@ -51,18 +51,18 @@ impl<T, const E: usize> Clone for Rc<'_, T, E> {
     }
 }
 
-impl<'a, T: Default, const E: usize> Pool<RcInner<T>, E> {
+impl<'a, T: Default> Pool<RcInner<T>> {
     /// Allocate a default initialized Rc from a Pool.
     #[inline]
-    pub fn default_rc(&'a mut self) -> Rc<'a, T, E> {
+    pub fn default_rc(&'a mut self) -> Rc<'a, T> {
         self.alloc_rc(T::default())
     }
 }
 
-impl<'a, T, const E: usize> Pool<RcInner<T>, E> {
+impl<'a, T> Pool<RcInner<T>> {
     /// Allocate a Box from a Pool.
     #[inline]
-    pub fn alloc_rc(&'a self, t: T) -> Rc<'a, T, E> {
+    pub fn alloc_rc(&'a self, t: T) -> Rc<'a, T> {
         Rc {
             slot: self.alloc(RcInner::new(t)),
             pool: self,
@@ -70,7 +70,7 @@ impl<'a, T, const E: usize> Pool<RcInner<T>, E> {
     }
 }
 
-impl<T, const E: usize> Drop for Rc<'_, T, E> {
+impl<T> Drop for Rc<'_, T> {
     #[inline]
     fn drop(&mut self) {
         self.slot.get().dec_strong();
@@ -91,7 +91,7 @@ impl<T, const E: usize> Drop for Rc<'_, T, E> {
     }
 }
 
-impl<T, const E: usize> Deref for Rc<'_, T, E> {
+impl<T> Deref for Rc<'_, T> {
     type Target = T;
 
     #[inline]
@@ -100,49 +100,49 @@ impl<T, const E: usize> Deref for Rc<'_, T, E> {
     }
 }
 
-impl<T, const E: usize> DerefMut for Rc<'_, T, E> {
+impl<T> DerefMut for Rc<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
         unsafe { self.slot.get_mut().data.assume_init_mut() }
     }
 }
 
-impl<T, const E: usize> Borrow<T> for Rc<'_, T, E> {
+impl<T> Borrow<T> for Rc<'_, T> {
     #[inline]
     fn borrow(&self) -> &T {
         unsafe { self.slot.get().data.assume_init_ref() }
     }
 }
 
-impl<T, const E: usize> BorrowMut<T> for Rc<'_, T, E> {
+impl<T> BorrowMut<T> for Rc<'_, T> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
         unsafe { self.slot.get_mut().data.assume_init_mut() }
     }
 }
 
-impl<T, const E: usize> AsRef<T> for Rc<'_, T, E> {
+impl<T> AsRef<T> for Rc<'_, T> {
     #[inline]
     fn as_ref(&self) -> &T {
         unsafe { self.slot.get().data.assume_init_ref() }
     }
 }
 
-impl<T, const E: usize> AsMut<T> for Rc<'_, T, E> {
+impl<T> AsMut<T> for Rc<'_, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
         unsafe { self.slot.get_mut().data.assume_init_mut() }
     }
 }
 
-impl<T: PartialEq, const E: usize> PartialEq for Rc<'_, T, E> {
+impl<T: PartialEq> PartialEq for Rc<'_, T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         PartialEq::eq(&**self, &**other)
     }
 }
 
-impl<T: PartialOrd, const E: usize> PartialOrd for Rc<'_, T, E> {
+impl<T: PartialOrd> PartialOrd for Rc<'_, T> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         PartialOrd::partial_cmp(&**self, &**other)
@@ -165,21 +165,21 @@ impl<T: PartialOrd, const E: usize> PartialOrd for Rc<'_, T, E> {
     }
 }
 
-impl<T: Ord, const E: usize> Ord for Rc<'_, T, E> {
+impl<T: Ord> Ord for Rc<'_, T> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         Ord::cmp(&**self, &**other)
     }
 }
-impl<T: Eq, const E: usize> Eq for Rc<'_, T, E> {}
+impl<T: Eq> Eq for Rc<'_, T> {}
 
-impl<T: Hash, const E: usize> Hash for Rc<'_, T, E> {
+impl<T: Hash> Hash for Rc<'_, T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         (**self).hash(state);
     }
 }
 
-impl<T: Hasher, const E: usize> Hasher for Rc<'_, T, E> {
+impl<T: Hasher> Hasher for Rc<'_, T> {
     fn finish(&self) -> u64 {
         (**self).finish()
     }
@@ -230,19 +230,19 @@ impl<T: Hasher, const E: usize> Hasher for Rc<'_, T, E> {
     // }
 }
 
-impl<T: fmt::Display, const E: usize> fmt::Display for Rc<'_, T, E> {
+impl<T: fmt::Display> fmt::Display for Rc<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
 
-impl<T: fmt::Debug, const E: usize> fmt::Debug for Rc<'_, T, E> {
+impl<T: fmt::Debug> fmt::Debug for Rc<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<T, const E: usize> fmt::Pointer for Rc<'_, T, E> {
+impl<T> fmt::Pointer for Rc<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr: *const T = &**self;
         fmt::Pointer::fmt(&ptr, f)
@@ -250,12 +250,12 @@ impl<T, const E: usize> fmt::Pointer for Rc<'_, T, E> {
 }
 
 /// Weak references do not keep the object alive.
-pub struct Weak<'a, T, const E: usize> {
+pub struct Weak<'a, T> {
     slot: Slot<RcInner<T>>,
-    pool: &'a Pool<RcInner<T>, E>,
+    pool: &'a Pool<RcInner<T>>,
 }
 
-impl<T, const E: usize> Weak<'_, T, E> {
+impl<T> Weak<'_, T> {
     /// Associated function that returns the number of strong counters of this Weak.
     pub fn strong_count(&self) -> usize {
         self.slot.get().strong_count.get()
@@ -267,12 +267,12 @@ impl<T, const E: usize> Weak<'_, T, E> {
     }
 }
 
-impl<'a, T, const E: usize> Weak<'a, T, E> {
+impl<'a, T> Weak<'a, T> {
     /// Tries to create a Rc from a Weak reference. Fails when the strong count was zero.
-    pub fn upgrade(&self) -> Option<Rc<'a, T, E>> {
+    pub fn upgrade(&self) -> Option<Rc<'a, T>> {
         if self.strong_count() > 0 {
             self.slot.get().inc_strong();
-            Some(Rc::<'a, T, E> {
+            Some(Rc::<'a, T> {
                 slot: unsafe { self.slot.copy() },
                 pool: self.pool,
             })
@@ -282,7 +282,7 @@ impl<'a, T, const E: usize> Weak<'a, T, E> {
     }
 }
 
-impl<T, const E: usize> Clone for Weak<'_, T, E> {
+impl<T> Clone for Weak<'_, T> {
     fn clone(&self) -> Self {
         self.slot.get().inc_weak();
         Self {
@@ -292,7 +292,7 @@ impl<T, const E: usize> Clone for Weak<'_, T, E> {
     }
 }
 
-impl<T, const E: usize> Drop for Weak<'_, T, E> {
+impl<T> Drop for Weak<'_, T> {
     #[inline]
     fn drop(&mut self) {
         self.slot.get().dec_weak();
@@ -360,20 +360,20 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let pool: Pool<_, 128> = Pool::new();
+        let pool = Pool::new();
         let _myrc = pool.alloc_rc("Rc");
     }
 
     #[test]
     fn macro_test() {
-        let pool = pool!(RcInner<&str>, PAGE);
+        let pool = Pool::new();
         let myrc = pool.alloc_rc("Rc");
         assert_eq!(*myrc, "Rc");
     }
 
     #[test]
     fn clone() {
-        let pool = pool!(RcInner<&str>, PAGE);
+        let pool = Pool::new();
         let myrc1 = pool.alloc_rc("Rc");
         let myrc2 = myrc1.clone();
         let myrc3 = Rc::clone(&myrc2);
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn deref_mut() {
-        let pool = pool!(RcInner<&str>, PAGE);
+        let pool = Pool::new();
         let mut myrc = pool.alloc_rc("Rc");
         *myrc = "Changed";
         assert_eq!(*myrc, "Changed");
@@ -394,7 +394,7 @@ mod tests {
 
     #[test]
     fn weak() {
-        let pool = pool!(RcInner<&str>, PAGE);
+        let pool = Pool::new();
         let myrc = pool.alloc_rc("Rc");
         let weak = Rc::downgrade(&myrc);
         assert_eq!(weak.strong_count(), 1);

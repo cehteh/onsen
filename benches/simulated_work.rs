@@ -181,7 +181,7 @@ impl DataHandle for Box<Data<1000>> {
 }
 
 // data in a onsen box
-impl DataHandle for onsen::Box<'_, Data<3>, 1024> {
+impl DataHandle for onsen::Box<'_, Data<3>> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -195,7 +195,7 @@ impl DataHandle for onsen::Box<'_, Data<3>, 1024> {
     }
 }
 
-impl DataHandle for onsen::Box<'_, Data<64>, 1024> {
+impl DataHandle for onsen::Box<'_, Data<64>> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -209,7 +209,7 @@ impl DataHandle for onsen::Box<'_, Data<64>, 1024> {
     }
 }
 
-impl DataHandle for onsen::Box<'_, Data<1000>, 1024> {
+impl DataHandle for onsen::Box<'_, Data<1000>> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -301,23 +301,23 @@ impl Worker<'_> for BigBoxWorker {
 
 // // Now implement the workers for onsen boxes
 struct SmallOnsenWorker {
-    pool: onsen::Pool<Data<3>, 1024>,
+    pool: onsen::Pool<Data<3>>,
 }
 
 struct MedOnsenWorker {
-    pool: onsen::Pool<Data<64>, 1024>,
+    pool: onsen::Pool<Data<64>>,
 }
 
 struct BigOnsenWorker {
-    pool: onsen::Pool<Data<1000>, 1024>,
+    pool: onsen::Pool<Data<1000>>,
 }
 
 impl<'a> Worker<'a> for SmallOnsenWorker {
-    type Data = onsen::Box<'a, Data<3>, 1024>;
+    type Data = onsen::Box<'a, Data<3>>;
     fn new() -> Self {
-        SmallOnsenWorker {
-            pool: onsen::Pool::new(),
-        }
+        let pool = onsen::Pool::new();
+        pool.with_min_entries(1000);
+        SmallOnsenWorker { pool }
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
@@ -326,11 +326,11 @@ impl<'a> Worker<'a> for SmallOnsenWorker {
 }
 
 impl<'a> Worker<'a> for MedOnsenWorker {
-    type Data = onsen::Box<'a, Data<64>, 1024>;
+    type Data = onsen::Box<'a, Data<64>>;
     fn new() -> Self {
-        MedOnsenWorker {
-            pool: onsen::Pool::new(),
-        }
+        let pool = onsen::Pool::new();
+        pool.with_min_entries(1000);
+        MedOnsenWorker { pool }
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
@@ -339,11 +339,11 @@ impl<'a> Worker<'a> for MedOnsenWorker {
 }
 
 impl<'a> Worker<'a> for BigOnsenWorker {
-    type Data = onsen::Box<'a, Data<1000>, 1024>;
+    type Data = onsen::Box<'a, Data<1000>>;
     fn new() -> Self {
-        BigOnsenWorker {
-            pool: onsen::Pool::new(),
-        }
+        let pool = onsen::Pool::new();
+        pool.with_min_entries(1000);
+        BigOnsenWorker { pool }
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
