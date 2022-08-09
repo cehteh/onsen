@@ -5,7 +5,7 @@ use std::time::Duration;
 use onsen;
 
 // The data we work on contains a primary value used for sorting and some payload which becomes mutated
-struct Data<const N: usize> {
+pub struct Data<const N: usize> {
     primary: u32,
     payload: [u32; N],
 }
@@ -31,7 +31,53 @@ trait Worker<'a> {
     fn new() -> Self;
     fn new_element(&'a self, primary: u32) -> Option<Self::Data>;
 
-    fn run(&'a self, howmuch: usize) {
+    // a work simulator that does not free elements
+    fn run_keep(&'a self, howmuch: usize) {
+        let mut state = 0xbabeface_u32;
+        let mut workspace: Vec<Option<Self::Data>> = Vec::with_capacity(howmuch);
+        for _ in 0..howmuch {
+            match fast_prng(&mut state) % 100 {
+                _ if workspace.len() < 50 => {
+                    // warmup for the first 50 entries
+                    workspace.push(self.new_element(fast_prng(&mut state)));
+                }
+                0..=69 => {
+                    //push new entry
+                    workspace.push(self.new_element(fast_prng(&mut state)));
+                }
+                70..=74 => {
+                    // mutate payload & primary within first 10%
+                    let pos = fast_prng(&mut state) as usize % (workspace.len() / 10);
+                    if let Some(value) = workspace[pos].as_mut() {
+                        *value.primary_mut() = fast_prng(&mut state);
+                        for n in 0..value.payload().len() {
+                            value.payload()[n] = fast_prng(&mut state);
+                        }
+                    }
+                }
+                75..=79 => {
+                    // sort the first 5% of the vec values increasing, none at the end
+                    let pos = fast_prng(&mut state) as usize % (workspace.len() / 20);
+                    workspace[0..pos].sort_unstable_by(|a, b| {
+                        match (a, b) {
+                            (Some(a), Some(b)) => a.primary().partial_cmp(&b.primary()).unwrap(),
+                            _ => std::cmp::Ordering::Greater, // Contains a 'None'
+                        }
+                    });
+                }
+                80..=99 => {
+                    // swap 2 entries, first from the first 10%, second from anywhere
+                    let pos1 = fast_prng(&mut state) as usize % (workspace.len() / 10);
+                    let pos2 = fast_prng(&mut state) as usize % (workspace.len());
+                    workspace.swap(pos1, pos2);
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
+
+    // a work simulator that sometimes frees elements
+    fn run_drop(&'a self, howmuch: usize) {
         let mut state = 0xbabeface_u32;
         let mut workspace: Vec<Option<Self::Data>> = Vec::with_capacity(howmuch);
         for _ in 0..howmuch {
@@ -55,8 +101,8 @@ trait Worker<'a> {
                     }
                 }
                 70..=74 => {
-                    // sort the first 10% of the vec values increasing, none at the end
-                    let pos = fast_prng(&mut state) as usize % (workspace.len() / 10);
+                    // sort the first 5% of the vec values increasing, none at the end
+                    let pos = fast_prng(&mut state) as usize % (workspace.len() / 20);
                     workspace[0..pos].sort_unstable_by(|a, b| {
                         match (a, b) {
                             (Some(a), Some(b)) => a.primary().partial_cmp(&b.primary()).unwrap(),
@@ -64,19 +110,10 @@ trait Worker<'a> {
                         }
                     });
                 }
-                75..=79 => {
-                    // sort the whole vec values increasing, none at the end
-                    workspace.sort_unstable_by(|a, b| {
-                        match (a, b) {
-                            (Some(a), Some(b)) => a.primary().partial_cmp(&b.primary()).unwrap(),
-                            _ => std::cmp::Ordering::Greater, // Contains a 'None'
-                        }
-                    });
-                }
-                80..=89 => {
-                    // swap 2 entries, first from the first 10%, second from the first 25%
+                75..=89 => {
+                    // swap 2 entries, first from the first 10%, second from anywhere
                     let pos1 = fast_prng(&mut state) as usize % (workspace.len() / 10);
-                    let pos2 = fast_prng(&mut state) as usize % (workspace.len() / 4);
+                    let pos2 = fast_prng(&mut state) as usize % (workspace.len());
                     workspace.swap(pos1, pos2);
                 }
                 90..=99 => {
@@ -91,9 +128,9 @@ trait Worker<'a> {
 }
 
 /// Owned data (copypaste, workaround the lack of GAT's, eventually needs macro or wait for GAT's)
-struct SmallOwnedData(Data<3>);
-struct MedOwnedData(Data<64>);
-struct BigOwnedData(Data<1000>);
+pub struct SmallOwnedData(Data<3>, usize);
+pub struct MedOwnedData(Data<64>, usize);
+pub struct BigOwnedData(Data<1000>, usize);
 
 impl DataHandle for SmallOwnedData {
     fn primary(&self) -> &u32 {
@@ -138,45 +175,49 @@ impl DataHandle for BigOwnedData {
 }
 
 // data in a rust box
-impl DataHandle for Box<Data<3>> {
+pub struct SmallBoxedData(Box<Data<3>>, usize);
+pub struct MedBoxedData(Box<Data<64>>, usize);
+pub struct BigBoxedData(Box<Data<1000>>, usize);
+
+impl DataHandle for SmallBoxedData {
     fn primary(&self) -> &u32 {
-        &self.primary
+        &self.0.primary
     }
 
     fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
+        &mut self.0.primary
     }
 
     fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
+        &mut self.0.payload
     }
 }
 
-impl DataHandle for Box<Data<64>> {
+impl DataHandle for MedBoxedData {
     fn primary(&self) -> &u32 {
-        &self.primary
+        &self.0.primary
     }
 
     fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
+        &mut self.0.primary
     }
 
     fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
+        &mut self.0.payload
     }
 }
 
-impl DataHandle for Box<Data<1000>> {
+impl DataHandle for BigBoxedData {
     fn primary(&self) -> &u32 {
-        &self.primary
+        &self.0.primary
     }
 
     fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
+        &mut self.0.primary
     }
 
     fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
+        &mut self.0.payload
     }
 }
 
@@ -224,9 +265,12 @@ impl DataHandle for onsen::Box<'_, Data<1000>> {
 }
 
 // Now implement the workers for owned
-struct SmallOwnedWorker;
-struct MedOwnedWorker;
-struct BigOwnedWorker;
+#[repr(C)]
+pub struct SmallOwnedWorker;
+#[repr(C)]
+pub struct MedOwnedWorker;
+#[repr(C)]
+pub struct BigOwnedWorker;
 
 impl Worker<'_> for SmallOwnedWorker {
     type Data = SmallOwnedData;
@@ -235,7 +279,7 @@ impl Worker<'_> for SmallOwnedWorker {
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(SmallOwnedData(Data::new(primary)))
+        Some(SmallOwnedData(Data::new(primary), primary as usize))
     }
 }
 
@@ -246,7 +290,7 @@ impl Worker<'_> for MedOwnedWorker {
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(MedOwnedData(Data::new(primary)))
+        Some(MedOwnedData(Data::new(primary), primary as usize))
     }
 }
 
@@ -257,58 +301,64 @@ impl Worker<'_> for BigOwnedWorker {
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(BigOwnedData(Data::new(primary)))
+        Some(BigOwnedData(Data::new(primary), primary as usize))
     }
 }
 
 // Now implement the workers for rust boxes
-struct SmallBoxWorker;
-struct MedBoxWorker;
-struct BigBoxWorker;
+#[repr(C)]
+pub struct SmallBoxWorker;
+#[repr(C)]
+pub struct MedBoxWorker;
+#[repr(C)]
+pub struct BigBoxWorker;
 
 impl Worker<'_> for SmallBoxWorker {
-    type Data = Box<Data<3>>;
+    type Data = SmallBoxedData;
     fn new() -> Self {
         SmallBoxWorker
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(Box::new(Data::new(primary)))
+        Some(SmallBoxedData(
+            Box::new(Data::new(primary)),
+            primary as usize,
+        ))
     }
 }
 
 impl Worker<'_> for MedBoxWorker {
-    type Data = Box<Data<64>>;
+    type Data = MedBoxedData;
     fn new() -> Self {
         MedBoxWorker
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(Box::new(Data::new(primary)))
+        Some(MedBoxedData(Box::new(Data::new(primary)), primary as usize))
     }
 }
 
 impl Worker<'_> for BigBoxWorker {
-    type Data = Box<Data<1000>>;
+    type Data = BigBoxedData;
     fn new() -> Self {
         BigBoxWorker
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(Box::new(Data::new(primary)))
+        Some(BigBoxedData(Box::new(Data::new(primary)), primary as usize))
     }
 }
 
 // // Now implement the workers for onsen boxes
-struct SmallOnsenWorker {
+pub struct SmallOnsenWorker {
     pool: onsen::Pool<Data<3>>,
 }
 
-struct MedOnsenWorker {
+pub struct MedOnsenWorker {
     pool: onsen::Pool<Data<64>>,
 }
 
-struct BigOnsenWorker {
+pub struct BigOnsenWorker {
     pool: onsen::Pool<Data<1000>>,
 }
 
@@ -359,7 +409,8 @@ fn fast_prng(state: &mut u32) -> u32 {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let mut simulated_work = c.benchmark_group("simulated work, small data");
+    // Keep benchmarks
+    let mut simulated_work = c.benchmark_group("simulated keep, small data");
 
     for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
@@ -369,7 +420,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = SmallOwnedWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
@@ -378,7 +429,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = SmallBoxWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
@@ -387,14 +438,14 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = SmallOnsenWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
     }
 
     drop(simulated_work);
-    let mut simulated_work = c.benchmark_group("simulated work, medium data");
+    let mut simulated_work = c.benchmark_group("simulated keep, medium data");
 
     for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
@@ -404,7 +455,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = MedOwnedWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
@@ -413,7 +464,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = MedBoxWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
@@ -422,14 +473,14 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = MedOnsenWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
     }
 
     drop(simulated_work);
-    let mut simulated_work = c.benchmark_group("simulated work, big data");
+    let mut simulated_work = c.benchmark_group("simulated keep, big data");
 
     for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
@@ -439,7 +490,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = BigBoxWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
                 })
             }
         });
@@ -448,7 +499,105 @@ fn criterion_benchmark(c: &mut Criterion) {
             |b, &s| {
                 let worker = BigOnsenWorker::new();
                 b.iter(|| {
-                    worker.run(*s);
+                    worker.run_keep(*s);
+                })
+            }
+        });
+    }
+
+    drop(simulated_work);
+
+    // Drop benchmarks
+    let mut simulated_work = c.benchmark_group("simulated drop, small data");
+
+    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+        simulated_work.throughput(Throughput::Elements(*size as u64));
+        simulated_work.measurement_time(Duration::from_secs(30));
+
+        simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
+            |b, &s| {
+                let worker = SmallOwnedWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+            |b, &s| {
+                let worker = SmallBoxWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+            |b, &s| {
+                let worker = SmallOnsenWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+    }
+
+    drop(simulated_work);
+    let mut simulated_work = c.benchmark_group("simulated drop, medium data");
+
+    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+        simulated_work.throughput(Throughput::Elements(*size as u64));
+        simulated_work.measurement_time(Duration::from_secs(60));
+
+        simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
+            |b, &s| {
+                let worker = MedOwnedWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+            |b, &s| {
+                let worker = MedBoxWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+            |b, &s| {
+                let worker = MedOnsenWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+    }
+
+    drop(simulated_work);
+    let mut simulated_work = c.benchmark_group("simulated drop, big data");
+
+    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+        simulated_work.throughput(Throughput::Elements(*size as u64));
+        simulated_work.measurement_time(Duration::from_secs(90));
+
+        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+            |b, &s| {
+                let worker = BigBoxWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+            |b, &s| {
+                let worker = BigOnsenWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
                 })
             }
         });
