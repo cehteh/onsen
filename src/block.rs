@@ -12,12 +12,14 @@ use crate::Entry;
 /// use-case is that pools are rarely dropped. For program termination one can consider
 /// leaking the blocks explicitly.
 pub(crate) struct Block<T: Sized> {
-    /// Pointer to an `[*mut Entry<T>, capacity]` with the first `used` entries in use.
+    /// Pointer to an `[*mut Entry<T>, capacity]` with the first `len_used` entries in use.
     memory: *mut Entry<T>,
     /// Pointer to an bitmap with one bit for each entry in 'memory'. A set bit means that this entry is free.
     bitmap: *mut usize,
     freelist: *mut Entry<T>,
-    used: usize,
+    #[cfg(not(feature = "bitmap_scan"))]
+    in_use: usize,
+    len_used: usize,
     capacity: usize,
     layout: Layout,
 }
@@ -39,7 +41,9 @@ impl<T: Sized> Block<T> {
             memory: memory as *mut Entry<T>,
             bitmap,
             freelist: Entry::<T>::END_OF_FREELIST,
-            used: 0,
+            #[cfg(not(feature = "bitmap_scan"))]
+            in_use: 0,
+            len_used: 0,
             capacity,
             layout,
         }
@@ -77,7 +81,11 @@ impl<T: Sized> Block<T> {
         unsafe {
             std::slice::from_raw_parts(
                 self.bitmap,
-                (self.used + BITMAP_WORD_BITS - 1) / BITMAP_WORD_BITS,
+                if self.len_used > 0 {
+                    self.len_used / BITMAP_WORD_BITS + 1
+                } else {
+                    0
+                },
             )
         }
     }
@@ -87,62 +95,67 @@ impl<T: Sized> Block<T> {
         unsafe {
             std::slice::from_raw_parts_mut(
                 self.bitmap,
-                (self.used + BITMAP_WORD_BITS - 1) / BITMAP_WORD_BITS,
+                if self.len_used > 0 {
+                    self.len_used / BITMAP_WORD_BITS + 1
+                } else {
+                    0
+                },
             )
         }
     }
 
-    fn bitmap_word(&self, index: usize) -> &usize {
-        &self.bitmap()[index / BITMAP_WORD_BITS]
+    fn bitmap_at_index(&self, index: usize) -> usize {
+        self.bitmap()[index / BITMAP_WORD_BITS]
     }
 
-    fn bitmap_word_mut(&mut self, index: usize) -> &mut usize {
+    fn bitmap_at_index_mut(&mut self, index: usize) -> &mut usize {
         &mut self.bitmap_mut()[index / BITMAP_WORD_BITS]
     }
 
     fn bitmap_clear_bit(&mut self, index: usize) {
-        let (index, bit) = bitmap_divmod(index);
-        self.bitmap_mut()[index] &= !(1usize << bit);
+        let (pos, bit) = bitmap_divmod(index);
+        self.bitmap_mut()[pos] &= !(1usize << bit);
     }
 
     fn bitmap_set_bit(&mut self, index: usize) {
-        let (index, bit) = bitmap_divmod(index);
-        self.bitmap_mut()[index] |= 1usize << bit;
+        let (pos, bit) = bitmap_divmod(index);
+        self.bitmap_mut()[pos] |= 1usize << bit;
     }
 
     /// Get a slice to the used part of the bitmap
     fn entries(&self) -> &[Entry<T>] {
-        unsafe { std::slice::from_raw_parts(self.memory, self.used) }
+        unsafe { std::slice::from_raw_parts(self.memory, self.len_used) }
     }
 
     /// Get a mutable slice to the used part of the bitmap
     fn entries_mut(&mut self) -> &mut [Entry<T>] {
-        unsafe { std::slice::from_raw_parts_mut(self.memory, self.used) }
+        unsafe { std::slice::from_raw_parts_mut(self.memory, self.len_used) }
     }
 
-    /// returns true when any entry is still in use
-    pub fn in_use(&self) -> bool {
-        if self.used > 0 {
-            assert_eq!(self.bitmap()[0], usize::MAX);
-        }
-        !self.bitmap().iter().all(|&i| i == usize::MAX)
+    /// Get a mutable slice to the used part of the bitmap
+    fn entry_ptr(&mut self, index: usize) -> *mut Entry<T> {
+        &mut self.entries_mut()[index]
     }
 
     // gets one entry from the unused capacity, returns None when the block is full
     fn extend(&mut self) -> Option<*mut Entry<T>> {
-        if self.used < self.capacity {
-            let pos = self.used;
-            self.used += 1;
+        if self.len_used < self.capacity {
+            let pos = self.len_used;
+            self.len_used += 1;
 
             if pos % BITMAP_WORD_BITS == 0 {
-                // initialize the next bitmap word to all but the last bit set (free)
-                *self.bitmap_word_mut(pos) = usize::MAX - 1;
+                // initialize the next bitmap word
+                *self.bitmap_at_index_mut(pos) = usize::MAX & !1;
             } else {
                 // otherwise just clear the 'free' bit
                 self.bitmap_clear_bit(pos);
             }
 
-            // Safety: checked used < capacity
+            #[cfg(not(feature = "bitmap_scan"))]
+            {
+                self.in_use += 1;
+            }
+            // Safety: checked len_used < capacity
             let entry = unsafe { self.entries_mut().get_mut(pos).unwrap_unchecked() };
             (*entry).descr_rev_ptr = Entry::<T>::UNINITIALIZED_SENTINEL;
             Some(entry)
@@ -171,6 +184,10 @@ impl<T: Sized> Block<T> {
                 };
                 (*entry).descr_rev_ptr = Entry::<T>::UNINITIALIZED_SENTINEL;
             }
+            #[cfg(not(feature = "bitmap_scan"))]
+            {
+                self.in_use += 1;
+            }
             Some(entry)
         }
     }
@@ -190,6 +207,21 @@ impl<T: Sized> Block<T> {
     #[inline]
     fn freelist_is_empty(&self) -> bool {
         self.freelist == Entry::<T>::END_OF_FREELIST
+    }
+
+    /// returns true when any entry is still in use
+    #[cfg(not(feature = "bitmap_scan"))]
+    pub fn in_use(&self) -> bool {
+        self.in_use > 0
+    }
+
+    #[cfg(feature = "bitmap_scan")]
+    pub fn in_use(&self) -> bool {
+        if self.len_used > 0 {
+            !self.bitmap().iter().all(|&i| i == usize::MAX)
+        } else {
+            false
+        }
     }
 
     pub fn free_entry(&mut self, entry: *mut Entry<T>) -> bool {
@@ -217,6 +249,10 @@ impl<T: Sized> Block<T> {
             }
             self.bitmap_set_bit(index);
             self.freelist = entry;
+            #[cfg(not(feature = "bitmap_scan"))]
+            {
+                self.in_use -= 1;
+            }
             true
         } else {
             false
@@ -236,7 +272,8 @@ impl<T> Drop for Block<T> {
     #[cfg(not(debug_assertions))]
     fn drop(&mut self) {
         if !self.in_use() {
-            // leak in release mode to enforce memory safety. This non intentional leaking is still not the allowed use.
+            // leak in release mode to enforce memory safety. This non intentional leaking is
+            // not supported, use explicit leaking.
             unsafe { dealloc(self.memory as *mut u8, self.layout) };
         }
     }
@@ -244,6 +281,7 @@ impl<T> Drop for Block<T> {
 
 const BITMAP_WORD_BITS: usize = usize::BITS as usize;
 
+#[inline(always)]
 fn bitmap_divmod(index: usize) -> (usize, usize) {
     (index / BITMAP_WORD_BITS, index % BITMAP_WORD_BITS)
 }

@@ -8,6 +8,12 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/cehteh/onsen.git"
 keywords = ["allocator", "pool"]
 
+[features]
+default = ["bitmap_scan"]
+# scanning the bitmap on pool drop makes pool dropping slower but we do not need to update a
+# counter on each allocation/free. Improving performance in the normal case.
+bitmap_scan = []
+
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"]}
 
