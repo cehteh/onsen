@@ -12,15 +12,6 @@
 /// Maximum number of blocks in a Pool
 pub(crate) const NUM_BLOCKS: usize = 44;
 
-/// Valid, initialized slot from which a mutable pin was taken
-pub(crate) const PINNED: usize = 1;
-/// Valid, initialized slot from which a mutable reference was taken
-pub(crate) const REFERENCED: usize = 2;
-/// Initialized slot
-pub(crate) const INITIALIZED: usize = 3;
-/// Uninitialized slot
-pub(crate) const UNINITIALIZED: usize = 4;
-
 mod block;
 use block::*;
 

@@ -9,6 +9,8 @@ use std::ops::DerefMut;
 
 use crate::*;
 
+//TODO: assoc_static pool
+
 /// A Box for Pool allocated objects. This wraps Slots in a safe way. Dropping a Box will
 /// ensure that the destructor is called and the memory is given back to the pool.
 pub struct Box<'a, T> {
@@ -20,14 +22,14 @@ impl<T> Box<'_, T> {
     /// Associated function that frees the memory of a Box without calling the destructor of
     /// its value.
     #[inline]
-    pub fn forget(b: Self) {
-        unsafe { b.pool.forget_by_ref(&b.slot) }
+    pub fn forget(mut b: Self) {
+        unsafe { b.pool.forget_by_ref(&mut b.slot) }
     }
 
     /// Associated function that frees the memory of a Box and returns the value it was holding.
     #[inline]
-    pub fn take(b: Self) -> T {
-        unsafe { b.pool.take_by_ref(&b.slot) }
+    pub fn take(mut b: Self) -> T {
+        unsafe { b.pool.take_by_ref(&mut b.slot) }
     }
 }
 
@@ -54,7 +56,7 @@ impl<T> Drop for Box<'_, T> {
     #[inline]
     fn drop(&mut self) {
         unsafe {
-            self.pool.free_by_ref(&self.slot);
+            self.pool.free_by_ref(&mut self.slot);
         }
     }
 }

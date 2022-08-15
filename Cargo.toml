@@ -8,29 +8,6 @@ license = "MIT OR Apache-2.0"
 repository = "https://github.com/cehteh/onsen.git"
 keywords = ["allocator", "pool"]
 
-[features]
-default = ["fast"]
-#default = []
-
-# puts all features used for best performance together
-fast = ["bitmap_scan", "cache_locality_span"]
-
-# add a bitmap to track free entries (disable only for benchmarks)
-bitmap = []
-
-# scanning the bitmap on pool drop makes pool dropping slower but we do not need to update a
-# counter on each allocation/free. Improving performance in the normal case where dropping
-# pools is rare or they can be leaked.
-bitmap_scan = ["bitmap"]
-
-# use the bitmap to optimize for cache-locality, this is the whole point keeping a bitmap,
-# disable only for benchmarks.
-cache_locality = ["bitmap"]
-
-# use the bitmap to optimize for cache-locality, span into neighbouring bitmap words,
-# disable only for benchmarks.
-cache_locality_span = ["cache_locality"]
-
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"]}
 

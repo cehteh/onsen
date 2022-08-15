@@ -1,4 +1,6 @@
+use std::marker::PhantomData;
 use std::pin::Pin;
+use std::ptr::NonNull;
 
 use crate::*;
 
@@ -10,9 +12,18 @@ use crate::*;
 /// mode it asserted that a slot belongs to the pool when it is given back. Safe abstractions
 /// should track the slots pool.
 #[repr(transparent)]
-pub struct Slot<T>(pub(crate) *mut Entry<T>);
+pub struct Slot<T>(pub(crate) NonNull<Entry<T>>, PhantomData<T>);
+
+// While onsen itself is not send/sync the allocated objects may be.
+unsafe impl<T: Send> Send for Slot<T> {}
+unsafe impl<T: Sync> Sync for Slot<T> {}
 
 impl<T> Slot<T> {
+    // Private ctor
+    pub(crate) fn new(from: NonNull<Entry<T>>) -> Self {
+        Self(from, PhantomData)
+    }
+
     /// Get a reference to the uninitialized memory at slot.
     ///
     /// # Safety
@@ -26,7 +37,7 @@ impl<T> Slot<T> {
     #[inline]
     pub unsafe fn get_uninit(&mut self) -> &mut MaybeData<T> {
         assert!(self.is_uninitialized());
-        &mut (*self.0).maybe_data
+        &mut self.0.as_mut().maybe_data
     }
 
     /// Tags the object at slot as initialized, return a reference to the data.
@@ -41,8 +52,8 @@ impl<T> Slot<T> {
     #[inline]
     pub unsafe fn assume_init(&mut self) -> &T {
         assert!(self.is_uninitialized());
-        (*self.0).descr_rev_ptr = Entry::<T>::INITIALIZED_SENTINEL;
-        &(*self.0).maybe_data.data
+        self.0.as_mut().descriptor = Descriptor::Initialized;
+        &self.0.as_ref().maybe_data.data
     }
 
     /// Get a immutable reference to the object in slot, where slot must hold an initialized
@@ -54,7 +65,7 @@ impl<T> Slot<T> {
     #[inline]
     pub fn get(&self) -> &T {
         assert!(self.is_initialized());
-        unsafe { &(*self.0).maybe_data.data }
+        unsafe { &self.0.as_ref().maybe_data.data }
     }
 
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
@@ -67,8 +78,8 @@ impl<T> Slot<T> {
     pub fn get_mut(&mut self) -> &mut T {
         assert!(self.is_initialized() && !self.is_pinned());
         unsafe {
-            (*self.0).descr_rev_ptr = Entry::<T>::REFERENCED_SENTINEL;
-            &mut (*self.0).maybe_data.data
+            self.0.as_mut().descriptor = Descriptor::Referenced;
+            &mut self.0.as_mut().maybe_data.data
         }
     }
 
@@ -84,8 +95,8 @@ impl<T> Slot<T> {
     pub fn pin(&mut self) -> Pin<&mut T> {
         assert!(self.is_initialized() && !self.is_referenced());
         unsafe {
-            (*self.0).descr_rev_ptr = Entry::<T>::PINNED_SENTINEL;
-            Pin::new_unchecked(&mut (*self.0).maybe_data.data)
+            self.0.as_mut().descriptor = Descriptor::Pinned;
+            Pin::new_unchecked(&mut self.0.as_mut().maybe_data.data)
         }
     }
 
@@ -95,11 +106,11 @@ impl<T> Slot<T> {
     #[inline]
     pub fn into_u64(self) -> u64 {
         debug_assert_eq!(
-            self.0 as u64 & 0xffff000000000007,
+            self.0.as_ptr() as u64 & 0xffff000000000007,
             0,
             "Something is wrong on this platform"
         );
-        self.0 as u64
+        self.0.as_ptr() as u64
     }
 
     /// Converts a usize identifier obtained by `as_u64()` back into a Slot.
@@ -110,7 +121,10 @@ impl<T> Slot<T> {
     #[inline]
     pub unsafe fn from_u64(id: u64) -> Self {
         debug_assert_eq!(id & 0xffff000000000007, 0, "Invalid identifier");
-        Self(id as *mut Entry<T>)
+        Self(
+            NonNull::new(id as *mut Entry<T>).expect("Invalid identifier"),
+            PhantomData,
+        )
     }
 
     /// Converts a usize identifier obtained by `as_usize()` back into a Slot. Before doing so
@@ -122,7 +136,10 @@ impl<T> Slot<T> {
     /// may have the auxiliary bits set.
     #[inline]
     pub unsafe fn from_u64_masked(id: u64) -> Self {
-        Self((id & !0xffff000000000007) as *mut Entry<T>)
+        Self(
+            NonNull::new((id & !0xffff000000000007) as *mut Entry<T>).expect("Invalid identifier"),
+            PhantomData,
+        )
     }
 
     /// Copies a slot handle.
@@ -132,13 +149,13 @@ impl<T> Slot<T> {
     /// Slots must be given back to the pool only once which as well invalidates any copies.
     #[inline]
     pub unsafe fn copy(&self) -> Slot<T> {
-        Slot(self.0)
+        Slot(self.0, PhantomData)
     }
 
-    /// Returns true when the slot is allocated and false when it is free.
+    /// Returns true when the slot is free and false when it is allocated.
     #[inline]
-    pub fn is_allocated(&self) -> bool {
-        self.entry().is_allocated()
+    pub fn is_free(&self) -> bool {
+        self.entry().is_free()
     }
 
     /// Returns true when the slot is uninitialized,
@@ -170,6 +187,6 @@ impl<T> Slot<T> {
     #[inline]
     fn entry(&self) -> &Entry<T> {
         // Safety: Slots are always created from valid entries
-        unsafe { &*self.0 }
+        unsafe { self.0.as_ref() }
     }
 }

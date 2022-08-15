@@ -79,7 +79,7 @@ impl<T> Drop for Rc<'_, T> {
             if self.slot.get_mut().weak_count.get() == 0 {
                 // no references exist, can be freed completely
                 unsafe {
-                    self.pool.free_by_ref(&self.slot);
+                    self.pool.free_by_ref(&mut self.slot);
                 }
             } else {
                 // only weak references exist, drop in place
@@ -301,7 +301,7 @@ impl<T> Drop for Weak<'_, T> {
             if self.slot.get_mut().weak_count.get() == 0 {
                 // no references exist, can be freed completely
                 unsafe {
-                    self.pool.free_by_ref(&self.slot);
+                    self.pool.free_by_ref(&mut self.slot);
                 }
             } else {
                 // only weak references exist, drop in place
