@@ -175,9 +175,9 @@ impl DataHandle for BigOwnedData {
 }
 
 // data in a rust box
-pub struct SmallBoxedData(Box<Data<3>>, usize);
-pub struct MedBoxedData(Box<Data<64>>, usize);
-pub struct BigBoxedData(Box<Data<1000>>, usize);
+pub struct SmallBoxedData(Box<Data<3>>);
+pub struct MedBoxedData(Box<Data<64>>);
+pub struct BigBoxedData(Box<Data<1000>>);
 
 impl DataHandle for SmallBoxedData {
     fn primary(&self) -> &u32 {
@@ -320,10 +320,7 @@ impl Worker<'_> for SmallBoxWorker {
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(SmallBoxedData(
-            Box::new(Data::new(primary)),
-            primary as usize,
-        ))
+        Some(SmallBoxedData(Box::new(Data::new(primary))))
     }
 }
 
@@ -334,7 +331,7 @@ impl Worker<'_> for MedBoxWorker {
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(MedBoxedData(Box::new(Data::new(primary)), primary as usize))
+        Some(MedBoxedData(Box::new(Data::new(primary))))
     }
 }
 
@@ -345,7 +342,7 @@ impl Worker<'_> for BigBoxWorker {
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(BigBoxedData(Box::new(Data::new(primary)), primary as usize))
+        Some(BigBoxedData(Box::new(Data::new(primary))))
     }
 }
 
