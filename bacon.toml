@@ -14,6 +14,11 @@ command = ["cargo", "check", "--all-targets", "--color", "always"]
 need_stdout = false
 watch = ["tests", "benches", "examples"]
 
+[jobs.check-all-features]
+command = ["cargo", "check-all-features", "--all-targets", "--color", "always"]
+need_stdout = false
+watch = ["tests", "benches", "examples"]
+
 [jobs.clippy]
 command = ["cargo", "clippy", "--color", "always"]
 need_stdout = false
@@ -30,6 +35,11 @@ watch = ["benches"]
 
 [jobs.test]
 command = ["cargo", "test", "--color", "always"]
+need_stdout = true
+watch = ["tests"]
+
+[jobs.test-all-features]
+command = ["cargo", "test-all-features", "--color", "always"]
 need_stdout = true
 watch = ["tests"]
 
@@ -58,9 +68,11 @@ need_stdout = true
 # should go in your personal prefs.toml file instead.
 [keybindings]
 a = "job:check-all"
-a = "job:bench"
+shift-a = "job:check-all-features"
+b = "job:bench"
 i = "job:initial"
 c = "job:clippy"
 d = "job:doc-open"
 t = "job:test"
+shift-t = "job:test-all-features"
 r = "job:run"
