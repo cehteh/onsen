@@ -66,42 +66,42 @@ impl<T> Deref for Box<'_, T> {
 
     #[inline]
     fn deref(&self) -> &<Self as Deref>::Target {
-        self.slot.get()
+        unsafe { self.slot.get_unchecked() }
     }
 }
 
 impl<T> DerefMut for Box<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        self.slot.get_mut()
+        unsafe { self.slot.get_mut_unchecked() }
     }
 }
 
 impl<T> Borrow<T> for Box<'_, T> {
     #[inline]
     fn borrow(&self) -> &T {
-        self.slot.get()
+        unsafe { self.slot.get_unchecked() }
     }
 }
 
 impl<T> BorrowMut<T> for Box<'_, T> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
-        self.slot.get_mut()
+        unsafe { self.slot.get_mut_unchecked() }
     }
 }
 
 impl<T> AsRef<T> for Box<'_, T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        self.slot.get()
+        unsafe { self.slot.get_unchecked() }
     }
 }
 
 impl<T> AsMut<T> for Box<'_, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
-        self.slot.get_mut()
+        unsafe { self.slot.get_mut_unchecked() }
     }
 }
 

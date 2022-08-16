@@ -68,6 +68,18 @@ impl<T> Slot<T> {
         unsafe { &self.0.as_ref().maybe_data.data }
     }
 
+    /// Get a immutable reference to the object in slot, where slot must hold an initialized
+    /// object.
+    ///
+    /// # Safety:
+    ///
+    /// This unsafe function does not assert the correct state of the Slot. It is intended to
+    /// be used from higher level abstraction which can ensure correctness on a type level.
+    #[inline]
+    pub unsafe fn get_unchecked(&self) -> &T {
+        &self.0.as_ref().maybe_data.data
+    }
+
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
     ///
     /// # Panics
@@ -81,6 +93,18 @@ impl<T> Slot<T> {
             self.0.as_mut().descriptor = Descriptor::Referenced;
             &mut self.0.as_mut().maybe_data.data
         }
+    }
+
+    /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
+    ///
+    /// # Safety:
+    ///
+    /// This unsafe function does not assert the correct state of the Slot. It is intended to
+    /// be used from higher level abstraction which can ensure correctness on a type level.
+    #[inline]
+    pub unsafe fn get_mut_unchecked(&mut self) -> &mut T {
+        self.0.as_mut().descriptor = Descriptor::Referenced;
+        &mut self.0.as_mut().maybe_data.data
     }
 
     /// Get a pinned reference to the object in slot, where slot must be an allocated
@@ -98,6 +122,18 @@ impl<T> Slot<T> {
             self.0.as_mut().descriptor = Descriptor::Pinned;
             Pin::new_unchecked(&mut self.0.as_mut().maybe_data.data)
         }
+    }
+
+    /// Get a pinned reference to the object in slot, where slot must be an allocated
+    /// slot.
+    ///
+    /// # Safety:
+    ///
+    /// This unsafe function does not assert the correct state of the Slot. It is intended to
+    /// be used from higher level abstraction which can ensure correctness on a type level.
+    pub unsafe fn pin_unchecked(&mut self) -> Pin<&mut T> {
+        self.0.as_mut().descriptor = Descriptor::Pinned;
+        Pin::new_unchecked(&mut self.0.as_mut().maybe_data.data)
     }
 
     /// Zero cost conversion to a u64 identifier of the slot. This identifier is guaranteed

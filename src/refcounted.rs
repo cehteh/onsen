@@ -21,32 +21,36 @@ pub struct Rc<'a, T> {
 impl<T> Rc<'_, T> {
     /// Associated function that returns the number of strong counters of this Rc.
     pub fn strong_count(this: &Self) -> usize {
-        this.slot.get().strong_count.get()
+        unsafe { this.slot.get_unchecked().strong_count.get() }
     }
 
     /// Associated function that returns the number of weak counters of this Rc.
     pub fn weak_count(this: &Self) -> usize {
-        this.slot.get().weak_count.get()
+        unsafe { this.slot.get_unchecked().weak_count.get() }
     }
 }
 
 impl<'a, T> Rc<'a, T> {
     /// Creates a Weak reference from a Rc.
     pub fn downgrade(this: &Self) -> Weak<'a, T> {
-        this.slot.get().inc_weak();
-        Weak::<'a, T> {
-            slot: unsafe { this.slot.copy() },
-            pool: this.pool,
+        unsafe {
+            this.slot.get_unchecked().inc_weak();
+            Weak::<'a, T> {
+                slot: this.slot.copy(),
+                pool: this.pool,
+            }
         }
     }
 }
 
 impl<T> Clone for Rc<'_, T> {
     fn clone(&self) -> Self {
-        self.slot.get().inc_strong();
-        Self {
-            slot: unsafe { self.slot.copy() },
-            pool: self.pool,
+        unsafe {
+            self.slot.get_unchecked().inc_strong();
+            Self {
+                slot: self.slot.copy(),
+                pool: self.pool,
+            }
         }
     }
 }
@@ -73,10 +77,12 @@ impl<'a, T> Pool<RcInner<T>> {
 impl<T> Drop for Rc<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        self.slot.get().dec_strong();
+        let mslot = unsafe { self.slot.get_mut_unchecked() };
 
-        if self.slot.get_mut().strong_count.get() == 0 {
-            if self.slot.get_mut().weak_count.get() == 0 {
+        mslot.dec_strong();
+
+        if mslot.strong_count.get() == 0 {
+            if mslot.weak_count.get() == 0 {
                 // no references exist, can be freed completely
                 unsafe {
                     self.pool.free_by_ref(&mut self.slot);
@@ -84,7 +90,7 @@ impl<T> Drop for Rc<'_, T> {
             } else {
                 // only weak references exist, drop in place
                 unsafe {
-                    self.slot.get_mut().data.assume_init_drop();
+                    mslot.data.assume_init_drop();
                 }
             }
         }
@@ -96,42 +102,42 @@ impl<T> Deref for Rc<'_, T> {
 
     #[inline]
     fn deref(&self) -> &<Self as Deref>::Target {
-        unsafe { self.slot.get().data.assume_init_ref() }
+        unsafe { self.slot.get_unchecked().data.assume_init_ref() }
     }
 }
 
 impl<T> DerefMut for Rc<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        unsafe { self.slot.get_mut().data.assume_init_mut() }
+        unsafe { self.slot.get_mut_unchecked().data.assume_init_mut() }
     }
 }
 
 impl<T> Borrow<T> for Rc<'_, T> {
     #[inline]
     fn borrow(&self) -> &T {
-        unsafe { self.slot.get().data.assume_init_ref() }
+        unsafe { self.slot.get_unchecked().data.assume_init_ref() }
     }
 }
 
 impl<T> BorrowMut<T> for Rc<'_, T> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
-        unsafe { self.slot.get_mut().data.assume_init_mut() }
+        unsafe { self.slot.get_mut_unchecked().data.assume_init_mut() }
     }
 }
 
 impl<T> AsRef<T> for Rc<'_, T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        unsafe { self.slot.get().data.assume_init_ref() }
+        unsafe { self.slot.get_unchecked().data.assume_init_ref() }
     }
 }
 
 impl<T> AsMut<T> for Rc<'_, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
-        unsafe { self.slot.get_mut().data.assume_init_mut() }
+        unsafe { self.slot.get_mut_unchecked().data.assume_init_mut() }
     }
 }
 
@@ -258,12 +264,12 @@ pub struct Weak<'a, T> {
 impl<T> Weak<'_, T> {
     /// Associated function that returns the number of strong counters of this Weak.
     pub fn strong_count(&self) -> usize {
-        self.slot.get().strong_count.get()
+        unsafe { self.slot.get_unchecked().strong_count.get() }
     }
 
     /// Associated function that returns the number of weak counters of this Weak.
     pub fn weak_count(&self) -> usize {
-        self.slot.get().weak_count.get()
+        unsafe { self.slot.get_unchecked().weak_count.get() }
     }
 }
 
@@ -271,11 +277,13 @@ impl<'a, T> Weak<'a, T> {
     /// Tries to create a Rc from a Weak reference. Fails when the strong count was zero.
     pub fn upgrade(&self) -> Option<Rc<'a, T>> {
         if self.strong_count() > 0 {
-            self.slot.get().inc_strong();
-            Some(Rc::<'a, T> {
-                slot: unsafe { self.slot.copy() },
-                pool: self.pool,
-            })
+            unsafe {
+                self.slot.get_unchecked().inc_strong();
+                Some(Rc::<'a, T> {
+                    slot: self.slot.copy(),
+                    pool: self.pool,
+                })
+            }
         } else {
             None
         }
@@ -284,10 +292,12 @@ impl<'a, T> Weak<'a, T> {
 
 impl<T> Clone for Weak<'_, T> {
     fn clone(&self) -> Self {
-        self.slot.get().inc_weak();
-        Self {
-            slot: unsafe { self.slot.copy() },
-            pool: self.pool,
+        unsafe {
+            self.slot.get_unchecked().inc_weak();
+            Self {
+                slot: self.slot.copy(),
+                pool: self.pool,
+            }
         }
     }
 }
@@ -295,10 +305,11 @@ impl<T> Clone for Weak<'_, T> {
 impl<T> Drop for Weak<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        self.slot.get().dec_weak();
+        let mslot = unsafe { self.slot.get_mut_unchecked() };
+        mslot.dec_weak();
 
-        if self.slot.get_mut().strong_count.get() == 0 {
-            if self.slot.get_mut().weak_count.get() == 0 {
+        if mslot.strong_count.get() == 0 {
+            if mslot.weak_count.get() == 0 {
                 // no references exist, can be freed completely
                 unsafe {
                     self.pool.free_by_ref(&mut self.slot);
@@ -306,7 +317,7 @@ impl<T> Drop for Weak<'_, T> {
             } else {
                 // only weak references exist, drop in place
                 unsafe {
-                    self.slot.get_mut().data.assume_init_drop();
+                    mslot.data.assume_init_drop();
                 }
             }
         }
@@ -333,24 +344,22 @@ impl<T> RcInner<T> {
 
     #[inline]
     fn inc_strong(&self) {
-        self.strong_count
-            .set(self.strong_count.get().wrapping_add(1));
+        self.strong_count.set(self.strong_count.get() + 1);
     }
 
     #[inline]
     fn dec_strong(&self) {
-        self.strong_count
-            .set(self.strong_count.get().wrapping_sub(1));
+        self.strong_count.set(self.strong_count.get() - 1);
     }
 
     #[inline]
     fn inc_weak(&self) {
-        self.weak_count.set(self.weak_count.get().wrapping_add(1));
+        self.weak_count.set(self.weak_count.get() + 1);
     }
 
     #[inline]
     fn dec_weak(&self) {
-        self.weak_count.set(self.weak_count.get().wrapping_sub(1));
+        self.weak_count.set(self.weak_count.get() - 1);
     }
 }
 
