@@ -9,7 +9,7 @@ use std::ops::DerefMut;
 
 use crate::*;
 
-//TODO: assoc_static pool
+// PLANNED: assoc_static pool
 
 /// A Box for Pool allocated objects. This wraps Slots in a safe way. Dropping a Box will
 /// ensure that the destructor is called and the memory is given back to the pool.

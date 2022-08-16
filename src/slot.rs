@@ -29,7 +29,7 @@ impl<T> Slot<T> {
     /// # Safety
     ///
     /// The obtained references must be dropped before self.assume_init() is
-    /// called as this violates the Pin guarantees.
+    /// called as this would violate the Pin guarantees.
     ///
     /// # Panics
     ///

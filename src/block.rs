@@ -45,8 +45,9 @@ impl<T: Sized> Block<T> {
     /// Create a new first block, takes min_entries as hint for the initial blocksize
     /// calculation to contain at least this much entries.
     pub(crate) fn new_first(min_entries: usize) -> Self {
-        let min_entries = std::cmp::max(1, min_entries); // at least one
-                                                         // generous rounding to next power of two
+        let min_entries = std::cmp::max(64, min_entries);
+
+        // generous rounding to next power of two
         let blocksize =
             (min_entries * size_of::<Entry<T>>()).next_power_of_two() / size_of::<Entry<T>>();
         Self::new(blocksize)
@@ -180,7 +181,7 @@ mod tests {
 
     #[test]
     fn extend() {
-        let mut block: Block<String> = Block::new_first(10);
+        let mut block: Block<String> = Block::new_first(0);
         let _ = block.alloc_entry().unwrap();
         let _ = block.alloc_entry().unwrap();
         let _ = block.alloc_entry().unwrap();

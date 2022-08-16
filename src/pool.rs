@@ -98,7 +98,7 @@ impl<T> Pool<T> {
             ManuallyDrop::drop(&mut slot.0.as_mut().maybe_data.data);
         };
         assert!(
-            pool.add_to_freelist(slot.0.as_ptr()),
+            pool.free_entry(slot.0.as_ptr()),
             "Slot does not belong to pool"
         );
     }
@@ -125,7 +125,7 @@ impl<T> Pool<T> {
     pub unsafe fn forget_by_ref(&self, slot: &mut Slot<T>) {
         let mut pool = self.0.borrow_mut();
         assert!(
-            pool.add_to_freelist(slot.0.as_ptr()),
+            pool.free_entry(slot.0.as_ptr()),
             "Slot does not belong to pool"
         );
     }
@@ -158,7 +158,7 @@ impl<T> Pool<T> {
         assert!(slot.is_initialized() && !slot.is_pinned());
         let ret = ManuallyDrop::take(&mut slot.0.as_mut().maybe_data.data);
         assert!(
-            pool.add_to_freelist(slot.0.as_ptr()),
+            pool.free_entry(slot.0.as_ptr()),
             "Slot does not belong to pool"
         );
         ret
@@ -208,7 +208,7 @@ impl<T> PoolInner<T> {
 
     // Put entry back into the freelist. Returns 'false' when the entry does
     // not belong to this Pool.
-    unsafe fn add_to_freelist(&mut self, entry: *mut Entry<T>) -> bool {
+    unsafe fn free_entry(&mut self, entry: *mut Entry<T>) -> bool {
         for i in (0..self.blocks_allocated).rev() {
             if self.blocks[i].as_mut().unwrap_unchecked().free_entry(entry) {
                 return true;
