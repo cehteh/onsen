@@ -23,6 +23,8 @@ impl<T> Pool<T> {
             blocks: [(); NUM_BLOCKS].map(|_| None),
             blocks_allocated: 0,
             min_entries: 0,
+            in_use: 0,
+            freelist: None,
         }))
     }
 
@@ -177,43 +179,77 @@ pub(crate) struct PoolInner<T: Sized> {
     blocks: [Option<Block<T>>; NUM_BLOCKS],
     blocks_allocated: usize,
     min_entries: usize,
+    in_use: usize,
+    freelist: Option<NonNull<Entry<T>>>,
 }
 
 impl<T> PoolInner<T> {
-    // Allocate an entry from one of the Blocks, creating a new Block when required.
+    // Allocate an entry, creating a new Block when required.
     fn alloc_entry(&mut self) -> NonNull<Entry<T>> {
-        for i in (0..self.blocks_allocated).rev() {
-            if let Some(entry) = unsafe { self.blocks[i].as_mut().unwrap_unchecked().alloc_entry() }
-            {
-                return entry;
-            }
-        }
-
-        let bpos = self.blocks_allocated;
-        if bpos == 0 {
-            self.blocks[0] = Some(Block::new_first(self.min_entries));
+        let mut entry = if let Some(mut entry) = self.freelist {
+            // from freelist
+            self.freelist = unsafe { entry.as_mut().remove_free_node() };
+            entry
         } else {
-            self.blocks[bpos] = Some(Block::new_next(self.blocks[bpos - 1].as_ref().unwrap()));
-        }
-        self.blocks_allocated += 1;
+            // from block
+            if self.blocks_allocated == 0 {
+                // allocate initial block
+                self.blocks[0] = Some(Block::new_first(self.min_entries));
+                self.blocks_allocated += 1;
+            } else if unsafe {
+                self.blocks
+                    .get_unchecked(self.blocks_allocated - 1)
+                    .as_ref()
+                    .unwrap_unchecked()
+                    .is_full()
+            } {
+                // allocate new block
+                self.blocks[self.blocks_allocated] = Some(Block::new_next(unsafe {
+                    self.blocks
+                        .get_unchecked(self.blocks_allocated - 1)
+                        .as_ref()
+                        .unwrap_unchecked()
+                }));
+                self.blocks_allocated += 1;
+            }
 
-        unsafe {
-            self.blocks[bpos]
-                .as_mut()
-                .unwrap_unchecked()
-                .alloc_entry()
-                .unwrap_unchecked()
-        }
+            unsafe {
+                self.blocks
+                    .get_unchecked_mut(self.blocks_allocated - 1)
+                    .as_mut()
+                    .unwrap_unchecked()
+                    .extend()
+            }
+        };
+
+        unsafe { entry.as_mut().descriptor = Descriptor::Uninitialized };
+        self.in_use += 1;
+        entry
     }
 
     // Put entry back into the freelist. Returns 'false' when the entry does
     // not belong to this Pool.
     unsafe fn free_entry(&mut self, entry: *mut Entry<T>) -> bool {
         for i in (0..self.blocks_allocated).rev() {
-            if self.blocks[i].as_mut().unwrap_unchecked().free_entry(entry) {
+            let block = self.blocks[i].as_mut().unwrap_unchecked();
+
+            if block.contains_entry(entry) {
+                debug_assert!(!Entry::ptr_is_free(entry));
+                match self.freelist {
+                    // first node, cyclic pointing to itself
+                    None => Entry::init_free_node(entry),
+                    Some(freelist_last) => {
+                        let list_node = freelist_last.as_ptr();
+                        Entry::insert_free_node(list_node, entry);
+                    }
+                }
+                (*entry).descriptor = Descriptor::Free;
+                self.in_use -= 1;
+                self.freelist = Some(NonNull::new_unchecked(entry));
                 return true;
             }
         }
+
         false
     }
 }
