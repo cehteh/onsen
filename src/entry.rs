@@ -109,7 +109,7 @@ impl<T> Entry<T> {
         matches!((*this).descriptor, Pinned)
     }
 
-    /// Removes an entry from the freelist and returns the entry that was before self, if any.
+    /// Removes an entry from the freelist and returns the entry that was next to self, if any.
     pub(crate) unsafe fn remove_free_node(&mut self) -> Option<NonNull<Entry<T>>> {
         debug_assert!(self.is_free(), "Invalid allocation");
 
@@ -122,7 +122,15 @@ impl<T> Entry<T> {
             let prev = self.maybe_data.freelist_node.prev;
             Entry::set_next(prev, next);
             Entry::set_prev(next, prev);
-            Some(NonNull::new_unchecked(prev))
+
+            Some(NonNull::new_unchecked(
+                // decide which side to return as new freelist head
+                if (next as usize + prev as usize) / 2 < self as *const Self as usize {
+                    prev
+                } else {
+                    next
+                },
+            ))
         }
     }
 
@@ -134,7 +142,7 @@ impl<T> Entry<T> {
         Entry::set_prev(this, this);
     }
 
-    /// Ordered insert if a freed node into the freelist. Order is determined by address of
+    /// Partial ordered insert if a freed node into the freelist. Order is determined by address of
     /// given nodes. The 'freed_node' is either inserted before or after 'this'.
     pub(crate) unsafe fn insert_free_node(mut this: *mut Self, freed_node: *mut Self) {
         debug_assert!(!Entry::ptr_is_free(freed_node), "Double free");
@@ -143,8 +151,8 @@ impl<T> Entry<T> {
         if freed_node < this {
             // insert freed_node before this
 
-            // one more sorting step has no impact on performance but may lead to better cache
-            // locality
+            // one more sorting step has no measurable impact on performance but may lead to
+            // better cache locality
             if freed_node < Entry::prev(this) {
                 this = Entry::prev(this);
             }

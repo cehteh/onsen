@@ -6,12 +6,10 @@ offers better locality than the standard allocator.
 
 # Details
 
-The first block in a Pool is size `[Entry<T>; E]`, when a Pool runs out of storage it
-allocates a new block from the system which is twice as big as the previous block.  E should
-be be optimized for the intended use. That is blocks should become close or equal to multiples
-of cache lines, pages, huge pages, whatever makes most sense. There is a OptimalBlockSize
-trait which does this calculations. Memory allocation happens only when necessary, creating a
-pool is a cheap operation.
+An onsen pool allocated blocks with exponentially growing sizes. Allocations are served from
+these blocks. Freed entries are kept in a double linked cyclic freelist. This freelist is kept
+in a very weak order and the entry point always point close to where the last action happend
+to keep the caches hot.
 
 
 # Box and Rc
