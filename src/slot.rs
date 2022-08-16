@@ -28,7 +28,7 @@ impl<T> Slot<T> {
     ///
     /// # Safety
     ///
-    /// The obtained references must be dropped before self.assume_init() is
+    /// The obtained references must be dropped before `self.assume_init()` is
     /// called as this would violate the Pin guarantees.
     ///
     /// # Panics
@@ -63,6 +63,7 @@ impl<T> Slot<T> {
     ///
     ///  * The slot does not contain a initialized object
     #[inline]
+    #[must_use]
     pub fn get(&self) -> &T {
         assert!(self.is_initialized());
         unsafe { &self.0.as_ref().maybe_data.data }
@@ -71,11 +72,12 @@ impl<T> Slot<T> {
     /// Get a immutable reference to the object in slot, where slot must hold an initialized
     /// object.
     ///
-    /// # Safety:
+    /// # Safety
     ///
     /// This unsafe function does not assert the correct state of the Slot. It is intended to
     /// be used from higher level abstraction which can ensure correctness on a type level.
     #[inline]
+    #[must_use]
     pub unsafe fn get_unchecked(&self) -> &T {
         &self.0.as_ref().maybe_data.data
     }
@@ -97,7 +99,7 @@ impl<T> Slot<T> {
 
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
     ///
-    /// # Safety:
+    /// # Safety
     ///
     /// This unsafe function does not assert the correct state of the Slot. It is intended to
     /// be used from higher level abstraction which can ensure correctness on a type level.
@@ -127,7 +129,7 @@ impl<T> Slot<T> {
     /// Get a pinned reference to the object in slot, where slot must be an allocated
     /// slot.
     ///
-    /// # Safety:
+    /// # Safety
     ///
     /// This unsafe function does not assert the correct state of the Slot. It is intended to
     /// be used from higher level abstraction which can ensure correctness on a type level.
@@ -140,6 +142,7 @@ impl<T> Slot<T> {
     /// to represent a 48bit wide 8-aligned pointer. Thus highest 16 bits and the last 3 bits
     /// can be used for storing auxiliary information (NaN tagging).
     #[inline]
+    #[must_use]
     pub fn into_u64(self) -> u64 {
         debug_assert_eq!(
             self.0.as_ptr() as u64 & 0xffff000000000007,
@@ -155,6 +158,7 @@ impl<T> Slot<T> {
     ///
     /// The identifier must point to the same allocation as the slot where it was got from.
     #[inline]
+    #[must_use]
     pub unsafe fn from_u64(id: u64) -> Self {
         debug_assert_eq!(id & 0xffff000000000007, 0, "Invalid identifier");
         Self(
@@ -171,6 +175,7 @@ impl<T> Slot<T> {
     /// The identifier must point to the same allocation as the slot where it was got from. It
     /// may have the auxiliary bits set.
     #[inline]
+    #[must_use]
     pub unsafe fn from_u64_masked(id: u64) -> Self {
         Self(
             NonNull::new((id & !0xffff000000000007) as *mut Entry<T>).expect("Invalid identifier"),
@@ -184,12 +189,14 @@ impl<T> Slot<T> {
     ///
     /// Slots must be given back to the pool only once which as well invalidates any copies.
     #[inline]
+    #[must_use]
     pub unsafe fn copy(&self) -> Slot<T> {
         Slot(self.0, PhantomData)
     }
 
     /// Returns true when the slot is free and false when it is allocated.
     #[inline]
+    #[must_use]
     pub fn is_free(&self) -> bool {
         self.entry().is_free()
     }
@@ -197,6 +204,7 @@ impl<T> Slot<T> {
     /// Returns true when the slot is uninitialized,
     /// false on anything else.
     #[inline]
+    #[must_use]
     pub fn is_uninitialized(&self) -> bool {
         self.entry().is_uninitialized()
     }
@@ -204,23 +212,27 @@ impl<T> Slot<T> {
     /// Returns true when the slot is initialized, got referenced or pinned.
     /// Returns false when the slot is uninitialized.
     #[inline]
+    #[must_use]
     pub fn is_initialized(&self) -> bool {
         self.entry().is_initialized()
     }
 
     /// Returns true when the slot ever got referenced or pinned.
     #[inline]
+    #[must_use]
     pub fn is_referenced(&self) -> bool {
         self.entry().is_referenced()
     }
 
     /// Returns true when the slot ever got pinned.
     #[inline]
+    #[must_use]
     pub fn is_pinned(&self) -> bool {
         self.entry().is_pinned()
     }
 
     #[inline]
+    #[must_use]
     fn entry(&self) -> &Entry<T> {
         // Safety: Slots are always created from valid entries
         unsafe { self.0.as_ref() }

@@ -1,6 +1,14 @@
 #![doc = include_str!("../README.md")]
+// uncomment for discovering new lints:
+// #![deny(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
+#![warn(clippy::cargo_common_metadata)]
+#![warn(clippy::doc_markdown)]
+#![warn(clippy::missing_panics_doc)]
+#![warn(clippy::must_use_candidate)]
+#![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
+
 /// Maximum number of blocks in a Pool
 pub(crate) const NUM_BLOCKS: usize = 44;
 

@@ -1,7 +1,7 @@
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 
-/// Special purpose version of MaybeUninit that may hold a forward pointer of the linked
+/// Special purpose version of `MaybeUninit` that may hold a forward pointer of the linked
 /// freelist when the Slot is free.
 #[repr(C)]
 pub union MaybeData<T> {
@@ -11,7 +11,7 @@ pub union MaybeData<T> {
 }
 
 impl<T> MaybeData<T> {
-    /// Overwrites the potentially uninitialized MaybeData with new data without dropping the
+    /// Overwrites the potentially uninitialized `MaybeData` with new data without dropping the
     /// old value. Returns a reference to the new data. This is safe because rust does not
     /// give the guarantees that destructors are always called. Still there is a danger
     /// because of this that some resources may be leaked.
@@ -143,7 +143,7 @@ impl<T> Entry<T> {
     }
 
     /// Partial ordered insert if a freed node into the freelist. Order is determined by address of
-    /// given nodes. The 'freed_node' is either inserted before or after 'this'.
+    /// given nodes. The `freed_node` is either inserted before or after 'this'.
     pub(crate) unsafe fn insert_free_node(mut this: *mut Self, freed_node: *mut Self) {
         debug_assert!(!Entry::ptr_is_free(freed_node), "Double free");
         debug_assert!(Entry::ptr_is_free(this), "Corrupted freelist");

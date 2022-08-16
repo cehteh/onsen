@@ -18,6 +18,7 @@ pub struct Pool<T: Sized>(pub(crate) RefCell<PoolInner<T>>);
 impl<T> Pool<T> {
     /// Creates a new Pool for objects of type T with an initial block size of E.
     #[inline]
+    #[must_use]
     pub fn new() -> Self {
         Self(RefCell::new(PoolInner {
             blocks: [(); NUM_BLOCKS].map(|_| None),
@@ -94,6 +95,7 @@ impl<T> Pool<T> {
     /// structures while keeping Slot non-Copy. The slot must not be used after this.
     /// See `slot.free()` for details.
     #[allow(clippy::missing_safety_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub unsafe fn free_by_ref(&self, slot: &mut Slot<T>) {
         let mut pool = self.0.borrow_mut();
         if slot.is_initialized() {
@@ -124,6 +126,7 @@ impl<T> Pool<T> {
     /// other structures while keeping Slot non-Copy.  The slot must not be used after this.
     /// See `slot.forget()` for details.
     #[allow(clippy::missing_safety_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub unsafe fn forget_by_ref(&self, slot: &mut Slot<T>) {
         let mut pool = self.0.borrow_mut();
         assert!(
@@ -155,6 +158,7 @@ impl<T> Pool<T> {
     /// structures while keeping Slot non-Copy.  The slot must not be used after this.  See
     /// `slot.take()` for details.
     #[allow(clippy::missing_safety_doc)]
+    #[allow(clippy::missing_panics_doc)]
     pub unsafe fn take_by_ref(&self, slot: &mut Slot<T>) -> T {
         let mut pool = self.0.borrow_mut();
         assert!(slot.is_initialized() && !slot.is_pinned());

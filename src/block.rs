@@ -37,7 +37,7 @@ impl<T: Sized> Block<T> {
         }
     }
 
-    /// Create a new first block, takes min_entries as hint for the initial blocksize
+    /// Create a new first block, takes `min_entries` as hint for the initial blocksize
     /// calculation to contain at least this much entries.
     pub(crate) fn new_first(min_entries: usize) -> Self {
         let min_entries = std::cmp::max(64, min_entries);
