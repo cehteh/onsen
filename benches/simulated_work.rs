@@ -86,11 +86,11 @@ trait Worker<'a> {
                     // warmup for the first 50 entries
                     workspace.push(self.new_element(fast_prng(&mut state)));
                 }
-                0..=59 => {
+                0..=39 => {
                     //push new entry
                     workspace.push(self.new_element(fast_prng(&mut state)));
                 }
-                60..=69 => {
+                40..=69 => {
                     // mutate payload & primary within first 10%
                     let pos = fast_prng(&mut state) as usize % (workspace.len() / 10);
                     if let Some(value) = workspace[pos].as_mut() {
