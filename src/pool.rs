@@ -101,10 +101,7 @@ impl<T> Pool<T> {
         if slot.is_initialized() {
             ManuallyDrop::drop(&mut slot.0.as_mut().maybe_data.data);
         };
-        assert!(
-            pool.free_entry(slot.0.as_ptr()),
-            "Slot does not belong to pool"
-        );
+        pool.free_entry(slot.0.as_ptr());
     }
 
     /// Puts the given slot back into the freelist. Will not call the the destructor.
@@ -129,10 +126,7 @@ impl<T> Pool<T> {
     #[allow(clippy::missing_panics_doc)]
     pub unsafe fn forget_by_ref(&self, slot: &mut Slot<T>) {
         let mut pool = self.0.borrow_mut();
-        assert!(
-            pool.free_entry(slot.0.as_ptr()),
-            "Slot does not belong to pool"
-        );
+        pool.free_entry(slot.0.as_ptr());
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -163,10 +157,7 @@ impl<T> Pool<T> {
         let mut pool = self.0.borrow_mut();
         assert!(slot.is_initialized() && !slot.is_pinned());
         let ret = ManuallyDrop::take(&mut slot.0.as_mut().maybe_data.data);
-        assert!(
-            pool.free_entry(slot.0.as_ptr()),
-            "Slot does not belong to pool"
-        );
+        pool.free_entry(slot.0.as_ptr());
         ret
     }
 
@@ -231,30 +222,28 @@ impl<T> PoolInner<T> {
         entry
     }
 
-    // Put entry back into the freelist. Returns 'false' when the entry does
-    // not belong to this Pool.
-    unsafe fn free_entry(&mut self, entry: *mut Entry<T>) -> bool {
-        for i in (0..self.blocks_allocated).rev() {
-            let block = self.blocks[i].as_mut().unwrap_unchecked();
+    // Put entry back into the freelist.
+    unsafe fn free_entry(&mut self, entry: *mut Entry<T>) {
+        debug_assert!(!Entry::ptr_is_free(entry));
 
-            if block.contains_entry(entry) {
-                debug_assert!(!Entry::ptr_is_free(entry));
-                match self.freelist {
-                    // first node, cyclic pointing to itself
-                    None => Entry::init_free_node(entry),
-                    Some(freelist_last) => {
-                        let list_node = freelist_last.as_ptr();
-                        Entry::insert_free_node(list_node, entry);
-                    }
-                }
-                (*entry).descriptor = Descriptor::Free;
-                self.in_use -= 1;
-                self.freelist = Some(NonNull::new_unchecked(entry));
-                return true;
-            }
+        if let Some(freelist_last) = self.freelist {
+            self.blocks[0..self.blocks_allocated]
+                .iter()
+                .rev()
+                .map(|block| block.as_ref().unwrap_unchecked())
+                .find(|block| block.contains_entry(entry))
+                .map(|_| {
+                    let list_node = freelist_last.as_ptr();
+                    Entry::insert_free_node(list_node, entry);
+                })
+                .expect("Entry not in Pool");
+        } else {
+            Entry::init_free_node(entry);
         }
 
-        false
+        (*entry).descriptor = Descriptor::Free;
+        self.in_use -= 1;
+        self.freelist = Some(NonNull::new_unchecked(entry));
     }
 }
 
