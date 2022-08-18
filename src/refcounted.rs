@@ -331,8 +331,7 @@ impl<T> Drop for Weak<'_, T> {
     }
 }
 
-// TODO: better way to hide this from the api
-#[allow(missing_docs)]
+/// Data including reference counters
 pub struct RcInner<T> {
     data: MaybeUninit<T>,
     strong_count: Cell<usize>,

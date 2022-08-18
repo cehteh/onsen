@@ -20,13 +20,7 @@ impl<T> Pool<T> {
     #[inline]
     #[must_use]
     pub fn new() -> Self {
-        Self(RefCell::new(PoolInner {
-            blocks: [(); NUM_BLOCKS].map(|_| None),
-            blocks_allocated: 0,
-            min_entries: 64,
-            in_use: 0,
-            freelist: None,
-        }))
+        Self(PoolInner::new())
     }
 
     /// Configures the minimum of entries the first block will hold. Must be called before the
@@ -183,6 +177,16 @@ pub(crate) struct PoolInner<T: Sized> {
 }
 
 impl<T> PoolInner<T> {
+    pub(crate) fn new() -> RefCell<Self> {
+        RefCell::new(Self {
+            blocks: [(); NUM_BLOCKS].map(|_| None),
+            blocks_allocated: 0,
+            min_entries: 64,
+            in_use: 0,
+            freelist: None,
+        })
+    }
+
     /// Allocate an entry, creating a new Block when required.
     fn alloc_entry(&mut self) -> NonNull<Entry<T>> {
         let entry = if let Some(mut entry) = self.freelist {

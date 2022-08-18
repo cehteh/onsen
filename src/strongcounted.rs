@@ -233,8 +233,7 @@ impl<T> fmt::Pointer for Sc<'_, T> {
     }
 }
 
-// TODO: better way to hide this from the api
-#[allow(missing_docs)]
+/// Data including reference counter
 pub struct ScInner<T> {
     data: MaybeUninit<T>,
     strong_count: Cell<usize>,
