@@ -1,8 +1,8 @@
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 
-/// Special purpose version of `MaybeUninit` that may hold a forward pointer of the linked
-/// freelist when the Slot is free.
+/// Special purpose version of `MaybeUninit` that may the linked freelist node when the Slot
+/// is free.
 #[repr(C)]
 pub union MaybeData<T> {
     pub(crate) uninit: (),
@@ -24,8 +24,8 @@ impl<T> MaybeData<T> {
 }
 
 /// The type of the freelist node. When used (node is free) then this is a cyclic list with
-/// pointers *always* pointing to some valid entry (itself when this is the only node in the
-/// list).
+/// pointers *always* pointing to some valid entry (pointing to itself when this is the only
+/// node in the list).
 pub(crate) struct FreelistNode<T> {
     pub prev: *mut Entry<T>,
     pub next: *mut Entry<T>,
@@ -194,4 +194,19 @@ impl<T> Entry<T> {
     unsafe fn set_prev(this: *mut Self, that: *mut Self) {
         (*(*this).maybe_data.freelist_node).prev = that;
     }
+}
+
+// Should be valid for C, but lets test this.
+#[test]
+fn entry_layout() {
+    let e = Entry {
+        maybe_data: MaybeData {
+            data: ManuallyDrop::new(String::from("Hello")),
+        },
+        descriptor: Descriptor::Uninitialized,
+    };
+    assert_eq!(
+        (&e) as *const Entry<String> as usize,
+        (&e.maybe_data) as *const MaybeData<String> as usize
+    );
 }

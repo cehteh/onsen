@@ -9,7 +9,7 @@ use crate::*;
 /// PANICS: One must not drop blocks while they are still in use. In debug mode this
 /// panics. In release the memory will be leaked to maintain memory safety.
 /// This emergency leaking is only there to prevent UB, it is not the intended
-/// use! There are two mechanisms to track the free entries.
+/// use!
 ///
 /// In case fast application shutdown is important one can explicitly leak the memory.
 pub(crate) struct Block<T: Sized> {
@@ -50,21 +50,10 @@ impl<T: Sized> Block<T> {
 
     /// Create a sucessor block with twice the size than `self`.
     pub(crate) fn new_next(&self) -> Self {
-        // slightly lossy calculation, might be better packed at bigger blocks but at soon the
-        // loss spans more than one page the kernel won't map the memory anyway.
         let blocksize =
             (self.capacity * 2 * size_of::<Entry<T>>()).next_power_of_two() / size_of::<Entry<T>>();
         Self::new(blocksize)
     }
-
-    /// Destroys the Block, leaking its allocations.
-    #[inline]
-    #[allow(dead_code)]
-    pub fn leak(self) {
-        std::mem::forget(self);
-    }
-
-    // TODO: test if making the accessors unsafe over the index, caller needs to provide correct index
 
     /// Get a slice to the used part of the bitmap
     fn entries(&self) -> &[Entry<T>] {
@@ -76,21 +65,22 @@ impl<T: Sized> Block<T> {
         unsafe { std::slice::from_raw_parts_mut(self.memory.as_mut(), self.len_used) }
     }
 
-    // returns true when a blocks capacity is exhausted
+    /// returns true when a blocks capacity is exhausted
     #[inline]
     pub(crate) fn is_full(&self) -> bool {
         self.len_used == self.capacity
     }
 
-    // gets one entry from the unused capacity, panics when the block is full
+    /// gets one entry from the unused capacity, panics when the block is full (in debug mode)
     pub(crate) fn extend(&mut self) -> NonNull<Entry<T>> {
         debug_assert!(self.len_used < self.capacity);
         let pos = self.len_used;
         self.len_used += 1;
-        // Safety: checked len_used < capacity, valid entry
+        // Safety: checked len_used < capacity
         unsafe { NonNull::new_unchecked(self.entries_mut().get_unchecked_mut(pos)) }
     }
 
+    /// returns true when entry belongs to self
     pub(crate) fn contains_entry(&self, entry: *mut Entry<T>) -> bool {
         self.entries()
             .as_ptr_range()

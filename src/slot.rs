@@ -187,7 +187,8 @@ impl<T> Slot<T> {
     ///
     /// # Safety
     ///
-    /// Slots must be given back to the pool only once which as well invalidates any copies.
+    /// Slots must be only once given back to the pool which as well invalidates any
+    /// copies. See how Rc uses this for the replication.
     #[inline]
     #[must_use]
     pub unsafe fn copy(&self) -> Slot<T> {

@@ -59,12 +59,13 @@ only run in debug mode. Few things can not be asserted and are guarded by unsafe
 # Benchmarking
 
 Onsen uses criterion for benchmarking, since onsen is made for singlethreaded application its
-best to be tested when locked on a single CPU core (nowadays CPU cores have different
-performance characteristics). At higher priority so it wont be disturbed as much from other
-programs. On Linux you may do something like:
+best to be tested when locked on a single CPU core and lock the core to some frequency well
+below the max to give more consistent results. At higher priority so it wont be disturbed as
+much from other programs. On Linux you may do something like:
 
 ```shell,ignore
 sudo renice -15 $$
+sudo cpupower -c 1 frequenc-sety -f 2.8GHz
 taskset 2 cargo bench
 ```
 

@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 
 use crate::*;
 
-/// A Memory Pool holding objects of type T with a initial block size of E objects.
+/// A Memory Pool holding objects of type T.
 ///
 /// The pool can not track how many references to a slot are active. This makes all
 /// `free()`, `forget()` and `take()` unsafe. Thus they have to be carefully protected by RAII
@@ -16,27 +16,35 @@ use crate::*;
 pub struct Pool<T: Sized>(pub(crate) RefCell<PoolInner<T>>);
 
 impl<T> Pool<T> {
-    /// Creates a new Pool for objects of type T with an initial block size of E.
+    /// Creates a new Pool for objects of type T.
     #[inline]
     #[must_use]
     pub fn new() -> Self {
         Self(RefCell::new(PoolInner {
             blocks: [(); NUM_BLOCKS].map(|_| None),
             blocks_allocated: 0,
-            min_entries: 0,
+            min_entries: 64,
             in_use: 0,
             freelist: None,
         }))
     }
 
     /// Configures the minimum of entries the first block will hold. Must be called before the
-    /// first allocation is made, otherwise it has no effect. Can be used when the number of
-    /// entries that will be used is roughly guessable and or the size of entries is small.
-    /// Setting this improves cache locality.  Since blocks are allocated with exponentially
-    /// growing size this should be still small enough, approx 1/4 of the average number of
-    /// entries to be expected. The implementation will generously round this up to the next
-    /// power of two.
+    /// first allocation is made. Can be used when the number of entries that will be used is
+    /// roughly guessable and or the size of entries is small.  Setting this improves cache
+    /// locality.  Since blocks are allocated with exponentially growing size this should be
+    /// still small enough, approx 1/4 of the average number of entries to be expected. The
+    /// implementation will generously round this up to the next power of two. When not set it
+    /// defaults to 64 entries.
+    ///
+    /// # Panics
+    ///
+    /// When called after the pool made its first allocation.
     pub fn with_min_entries(&self, min_entries: usize) {
+        assert!(
+            self.0.borrow_mut().blocks[0].is_none(),
+            "min_entries must be set before using the pool"
+        );
         self.0.borrow_mut().min_entries = min_entries;
     }
 
@@ -47,9 +55,9 @@ impl<T> Pool<T> {
     }
 
     /// Allocates a new slot from the pool, initializes it with the supplied object and
-    /// returns a slot handle. Freeing the object can be done manually with `pool.free()`,
-    /// `pool::forget()` or `pool.take()`. The user must take care that the slot is not used
-    /// after free as this may panic or return another object.
+    /// returns a slot handle. Freeing the object should be done manually with `pool.free()`,
+    /// `pool::forget()` or `pool.take()`. The user must take care that the slot/references
+    /// obtained from it are not used after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     #[inline]
     pub fn alloc(&self, t: T) -> Slot<T> {
@@ -63,20 +71,19 @@ impl<T> Pool<T> {
         Slot::new(entry)
     }
 
-    /// Allocates a new slot from the pool, keeps the content uninitialized returns its
-    /// address in the pool. Freeing the object may be done manually with `pool.free()` or
-    /// `pool.forget()`. Otherwise the object will say around until the whole Pool becomes
-    /// dropped. The user must take care that the provided address is not used after free as
-    /// this may panic or return another object.
+    /// Allocates a new slot from the pool, keeps the content uninitialized returns a Slot
+    /// handle to it. Freeing the object should be done manually with `pool.free()` or
+    /// `pool.forget()`. The user must take care that the provided handle or references
+    /// obtained from is are used after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     #[inline]
     pub fn alloc_uninit(&self) -> Slot<T> {
         Slot::new(self.alloc_entry())
     }
 
-    /// Frees the slot at `slot` by calling its destructor when it contains an initialized
-    /// object, uninitialized objects become forgotten as with `Pool::forget()`. Puts the
-    /// given slot back into the freelist.
+    /// Frees `slot` by calling its destructor when it contains an initialized object,
+    /// uninitialized objects become forgotten as with `Pool::forget()`. Puts the given slot
+    /// back into the freelist.
     ///
     /// # Safety
     ///
@@ -163,13 +170,14 @@ impl<T> Pool<T> {
 
     /// Destroys a Pool while leaking its allocated blocks.  The fast way out when one knows
     /// that allocations still exist and will never be returned to to the Pool. Either because
-    /// the program exits in some fast way or because the allocations are meant to stay.
+    /// the program exits or because the allocations are meant to stay.
     #[inline]
     pub fn leak(self) {
         std::mem::forget(self);
     }
 }
 
+/// Actual Pool implementations bits are behind a `RefCell`
 pub(crate) struct PoolInner<T: Sized> {
     blocks: [Option<Block<T>>; NUM_BLOCKS],
     blocks_allocated: usize,
@@ -179,7 +187,7 @@ pub(crate) struct PoolInner<T: Sized> {
 }
 
 impl<T> PoolInner<T> {
-    // Allocate an entry, creating a new Block when required.
+    /// Allocate an entry, creating a new Block when required.
     fn alloc_entry(&mut self) -> NonNull<Entry<T>> {
         let mut entry = if let Some(mut entry) = self.freelist {
             // from freelist
@@ -222,7 +230,14 @@ impl<T> PoolInner<T> {
         entry
     }
 
-    // Put entry back into the freelist.
+    /// Put entry back into the freelist.
+    ///
+    /// # Safety
+    ///
+    ///  * The object must be already destructed (if possible)
+    ///  * No references to the entry must exist
+    ///
+    /// This is internal, only called from Slot
     unsafe fn free_entry(&mut self, entry: *mut Entry<T>) {
         debug_assert!(!Entry::ptr_is_free(entry));
 
@@ -253,21 +268,6 @@ impl<T> Default for Pool<T> {
     }
 }
 
-// Should be valid for C, but lets test this.
-#[test]
-fn entry_layout() {
-    let e = Entry {
-        maybe_data: MaybeData {
-            data: ManuallyDrop::new(String::from("Hello")),
-        },
-        descriptor: Descriptor::Uninitialized,
-    };
-    assert_eq!(
-        (&e) as *const Entry<String> as usize,
-        (&e.maybe_data) as *const MaybeData<String> as usize
-    );
-}
-
 #[cfg(test)]
 mod tests {
     use crate::*;
@@ -275,5 +275,12 @@ mod tests {
     #[test]
     fn smoke() {
         let _pool: Pool<String> = Pool::new();
+    }
+
+    #[test]
+    fn leak() {
+        let pool: Pool<u64> = Pool::new();
+        let _ = pool.alloc(1234);
+        pool.leak();
     }
 }
