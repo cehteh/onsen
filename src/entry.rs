@@ -31,88 +31,18 @@ pub(crate) struct FreelistNode<T> {
     pub next: *mut Entry<T>,
 }
 
-/// For improved safety entries are tagged with their current state.
-pub(crate) enum Descriptor {
-    Free,
-    Uninitialized,
-    Initialized,
-    Referenced,
-    Pinned,
-}
-use Descriptor::*;
-
 /// Entries within a Pool.
 #[repr(C, align(8))]
 pub(crate) struct Entry<T> {
     pub(crate) maybe_data: MaybeData<T>,
-    pub(crate) descriptor: Descriptor,
 }
 
 // PLANNED: eventually (when stable) use https://github.com/rust-lang/rust/issues/44874
 //          pub(crate) unsafe fn foo(self: *mut Self)
 
 impl<T> Entry<T> {
-    /// Returns true when the entry is free and false when it is allocated.
-    #[inline(always)]
-    pub fn is_free(&self) -> bool {
-        unsafe { Self::ptr_is_free(self) }
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn ptr_is_free(this: *const Self) -> bool {
-        matches!((*this).descriptor, Free)
-    }
-
-    /// Returns true when the entry is uninitialized,
-    /// false on anything else.
-    #[inline(always)]
-    pub fn is_uninitialized(&self) -> bool {
-        unsafe { Self::ptr_is_uninitialized(self) }
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn ptr_is_uninitialized(this: *const Self) -> bool {
-        matches!((*this).descriptor, Uninitialized)
-    }
-
-    /// Returns true when the entry is initialized, got referenced or pinned.
-    /// Returns false when the entry is uninitialized.
-    #[inline(always)]
-    pub fn is_initialized(&self) -> bool {
-        unsafe { Self::ptr_is_initialized(self) }
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn ptr_is_initialized(this: *const Self) -> bool {
-        matches!((*this).descriptor, Initialized | Referenced | Pinned)
-    }
-
-    /// Returns true when the entry at 'entry' ever got referenced or pinned.
-    #[inline(always)]
-    pub fn is_referenced(&self) -> bool {
-        unsafe { Self::ptr_is_referenced(self) }
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn ptr_is_referenced(this: *const Self) -> bool {
-        matches!((*this).descriptor, Referenced | Pinned)
-    }
-
-    /// Returns true when the entry at 'entry' ever got pinned.
-    #[inline(always)]
-    pub fn is_pinned(&self) -> bool {
-        unsafe { Self::ptr_is_pinned(self) }
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn ptr_is_pinned(this: *const Self) -> bool {
-        matches!((*this).descriptor, Pinned)
-    }
-
     /// Removes an entry from the freelist and returns the entry that was next to self, if any.
     pub(crate) unsafe fn remove_free_node(&mut self) -> Option<NonNull<Entry<T>>> {
-        debug_assert!(self.is_free(), "Invalid allocation");
-
         let next = self.maybe_data.freelist_node.next;
         if next == self {
             // single node in list, nothing need to be done.
@@ -136,8 +66,6 @@ impl<T> Entry<T> {
 
     /// Initializes the freelist node to be pointing to itself.
     pub(crate) unsafe fn init_free_node(this: *mut Self) {
-        debug_assert!(!Entry::ptr_is_free(this), "Double free");
-
         Entry::set_next(this, this);
         Entry::set_prev(this, this);
     }
@@ -145,9 +73,6 @@ impl<T> Entry<T> {
     /// Partial ordered insert if a freed node into the freelist. Order is determined by address of
     /// given nodes. The `freed_node` is either inserted before or after 'this'.
     pub(crate) unsafe fn insert_free_node(mut this: *mut Self, freed_node: *mut Self) {
-        debug_assert!(!Entry::ptr_is_free(freed_node), "Double free");
-        debug_assert!(Entry::ptr_is_free(this), "Corrupted freelist");
-
         if freed_node < this {
             // insert freed_node before this
 
@@ -203,7 +128,6 @@ fn entry_layout() {
         maybe_data: MaybeData {
             data: ManuallyDrop::new(String::from("Hello")),
         },
-        descriptor: Descriptor::Uninitialized,
     };
     assert_eq!(
         (&e) as *const Entry<String> as usize,

@@ -60,7 +60,7 @@ mod tests {
     fn alloc_access() {
         let pool: Pool<&str> = Pool::new();
 
-        let mut memory = pool.alloc("Hello Memory");
+        let mut memory = pool.alloc("Hello Memory").for_mutation();
 
         assert_eq!(memory.get(), &"Hello Memory");
         assert_eq!(memory.get_mut(), &"Hello Memory");
@@ -85,26 +85,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn alloc_pincheck() {
-        let pool: Pool<&str> = Pool::new();
-
-        let mut memory = pool.alloc("Hello Memory");
-
-        assert_eq!(memory.get_mut(), &"Hello Memory");
-        assert_eq!(&*memory.pin(), &"Hello Memory");
-    }
-
-    #[test]
     fn alloc_uninit() {
         let pool: Pool<&str> = Pool::new();
 
         let mut memory = pool.alloc_uninit();
 
-        unsafe {
+        let memory = unsafe {
             memory.get_uninit().write("Hello Init");
-            memory.assume_init();
-        }
+            memory.assume_init()
+        };
 
         assert_eq!(memory.get(), &"Hello Init");
 

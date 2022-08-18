@@ -16,7 +16,7 @@ use crate::*;
 /// counterpart. When the Weak functionality is not required this can give a space advantage
 /// on small objects.
 pub struct Sc<'a, T> {
-    slot: Slot<ScInner<T>>,
+    slot: Slot<ScInner<T>, Mutable>,
     pool: &'a Pool<ScInner<T>>,
 }
 
@@ -24,7 +24,7 @@ impl<T> Sc<'_, T> {
     /// Associated function that returns the number of strong counters of this Sc.
     #[must_use]
     pub fn strong_count(this: &Self) -> usize {
-        unsafe { this.slot.get_unchecked().strong_count.get() }
+        this.slot.get().strong_count.get()
     }
 }
 
@@ -32,7 +32,7 @@ impl<T> Clone for Sc<'_, T> {
     #[must_use]
     fn clone(&self) -> Self {
         unsafe {
-            self.slot.get_unchecked().inc_strong();
+            self.slot.get().inc_strong();
             Self {
                 slot: self.slot.copy(),
                 pool: self.pool,
@@ -54,7 +54,7 @@ impl<'a, T> Pool<ScInner<T>> {
     #[inline]
     pub fn alloc_sc(&'a self, t: T) -> Sc<'a, T> {
         Sc {
-            slot: self.alloc(ScInner::new(t)),
+            slot: self.alloc(ScInner::new(t)).for_mutation(),
             pool: self,
         }
     }
@@ -63,7 +63,7 @@ impl<'a, T> Pool<ScInner<T>> {
 impl<T> Drop for Sc<'_, T> {
     #[inline]
     fn drop(&mut self) {
-        let mslot = unsafe { self.slot.get_mut_unchecked() };
+        let mslot = self.slot.get_mut();
 
         mslot.dec_strong();
 
@@ -80,42 +80,42 @@ impl<T> Deref for Sc<'_, T> {
 
     #[inline]
     fn deref(&self) -> &<Self as Deref>::Target {
-        unsafe { self.slot.get_unchecked().data.assume_init_ref() }
+        unsafe { self.slot.get().data.assume_init_ref() }
     }
 }
 
 impl<T> DerefMut for Sc<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        unsafe { self.slot.get_mut_unchecked().data.assume_init_mut() }
+        unsafe { self.slot.get_mut().data.assume_init_mut() }
     }
 }
 
 impl<T> Borrow<T> for Sc<'_, T> {
     #[inline]
     fn borrow(&self) -> &T {
-        unsafe { self.slot.get_unchecked().data.assume_init_ref() }
+        unsafe { self.slot.get().data.assume_init_ref() }
     }
 }
 
 impl<T> BorrowMut<T> for Sc<'_, T> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
-        unsafe { self.slot.get_mut_unchecked().data.assume_init_mut() }
+        unsafe { self.slot.get_mut().data.assume_init_mut() }
     }
 }
 
 impl<T> AsRef<T> for Sc<'_, T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        unsafe { self.slot.get_unchecked().data.assume_init_ref() }
+        unsafe { self.slot.get().data.assume_init_ref() }
     }
 }
 
 impl<T> AsMut<T> for Sc<'_, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
-        unsafe { self.slot.get_mut_unchecked().data.assume_init_mut() }
+        unsafe { self.slot.get_mut().data.assume_init_mut() }
     }
 }
 

@@ -14,7 +14,7 @@ use crate::*;
 /// A Box for Pool allocated objects. This wraps Slots in a safe way. Dropping a Box will
 /// ensure that the destructor is called and the memory is given back to the pool.
 pub struct Box<'a, T> {
-    slot: Slot<T>,
+    slot: Slot<T, Mutable>,
     pool: &'a Pool<T>,
 }
 
@@ -47,7 +47,7 @@ impl<'a, T> Pool<T> {
     #[inline]
     pub fn alloc_box(&'a self, t: T) -> Box<'a, T> {
         Box {
-            slot: self.alloc(t),
+            slot: self.alloc(t).for_mutation(),
             pool: self,
         }
     }
@@ -67,42 +67,42 @@ impl<T> Deref for Box<'_, T> {
 
     #[inline]
     fn deref(&self) -> &<Self as Deref>::Target {
-        unsafe { self.slot.get_unchecked() }
+        self.slot.get()
     }
 }
 
 impl<T> DerefMut for Box<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        unsafe { self.slot.get_mut_unchecked() }
+        self.slot.get_mut()
     }
 }
 
 impl<T> Borrow<T> for Box<'_, T> {
     #[inline]
     fn borrow(&self) -> &T {
-        unsafe { self.slot.get_unchecked() }
+        self.slot.get()
     }
 }
 
 impl<T> BorrowMut<T> for Box<'_, T> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
-        unsafe { self.slot.get_mut_unchecked() }
+        self.slot.get_mut()
     }
 }
 
 impl<T> AsRef<T> for Box<'_, T> {
     #[inline]
     fn as_ref(&self) -> &T {
-        unsafe { self.slot.get_unchecked() }
+        self.slot.get()
     }
 }
 
 impl<T> AsMut<T> for Box<'_, T> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
-        unsafe { self.slot.get_mut_unchecked() }
+        self.slot.get_mut()
     }
 }
 
