@@ -30,6 +30,9 @@ pub use boxed::*;
 mod refcounted;
 pub use refcounted::*;
 
+mod strongcounted;
+pub use strongcounted::*;
+
 #[cfg(test)]
 mod tests {
     use crate::*;
