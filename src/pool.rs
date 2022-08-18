@@ -65,7 +65,7 @@ impl<T> Pool<T> {
     pub fn alloc(&self, t: T) -> Slot<T, Initialized> {
         let mut entry = self.alloc_entry();
         unsafe {
-            entry.as_mut().maybe_data = MaybeData {
+            *entry.as_mut() = Entry {
                 data: ManuallyDrop::new(t),
             };
         }
@@ -79,7 +79,7 @@ impl<T> Pool<T> {
     #[allow(clippy::missing_panics_doc)]
     pub unsafe fn free_by_ref<S: DropPolicy>(&self, slot: &mut Slot<T, S>) {
         let mut pool = self.0.borrow_mut();
-        S::manually_drop(&mut slot.0.as_mut().maybe_data.data);
+        S::manually_drop(&mut slot.0.as_mut().data);
         pool.free_entry(slot.0.as_ptr());
     }
 
@@ -90,7 +90,7 @@ impl<T> Pool<T> {
     #[allow(clippy::missing_panics_doc)]
     pub unsafe fn take_by_ref<S: CanTakeValue>(&self, slot: &mut Slot<T, S>) -> T {
         let mut pool = self.0.borrow_mut();
-        let ret = ManuallyDrop::take(&mut slot.0.as_mut().maybe_data.data);
+        let ret = ManuallyDrop::take(&mut slot.0.as_mut().data);
         pool.free_entry(slot.0.as_ptr());
         ret
     }

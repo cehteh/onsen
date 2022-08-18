@@ -89,8 +89,8 @@ impl DropPolicy for NaNTagging {}
 impl<T> Slot<T, Uninitialized> {
     /// Get a reference to the uninitialized memory at slot.
     #[inline]
-    pub fn get_uninit(&mut self) -> &mut MaybeData<T> {
-        unsafe { &mut self.0.as_mut().maybe_data }
+    pub fn get_uninit(&mut self) -> &mut Entry<T> {
+        unsafe { self.0.as_mut() }
     }
 
     /// Tags the object at slot as initialized. Return an initialized Slot.
@@ -132,7 +132,7 @@ impl<T> Slot<T, Mutable> {
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
     #[inline]
     pub fn get_mut(&mut self) -> &mut T {
-        unsafe { &mut self.0.as_mut().maybe_data.data }
+        unsafe { &mut self.0.as_mut().data }
     }
 
     /// Copies a slot handle.
@@ -154,7 +154,7 @@ impl<T> Slot<T, Pinnable> {
     /// give Pin guarantees for them. One only need to make sure not to violate the Pin
     /// guarantees by calling unsafe functions
     pub fn pin(&mut self) -> Pin<&mut T> {
-        unsafe { Pin::new_unchecked(&mut self.0.as_mut().maybe_data.data) }
+        unsafe { Pin::new_unchecked(&mut self.0.as_mut().data) }
     }
 }
 
@@ -164,7 +164,7 @@ impl<T, S: CanGetReference> Slot<T, S> {
     #[inline]
     #[must_use]
     pub fn get(&self) -> &T {
-        unsafe { &self.0.as_ref().maybe_data.data }
+        unsafe { &self.0.as_ref().data }
     }
 }
 

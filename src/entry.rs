@@ -1,28 +1,6 @@
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 
-/// Special purpose version of `MaybeUninit` that may the linked freelist node when the Slot
-/// is free.
-#[repr(C)]
-pub union MaybeData<T> {
-    pub(crate) uninit: (),
-    pub(crate) data: ManuallyDrop<T>,
-    pub(crate) freelist_node: ManuallyDrop<FreelistNode<T>>,
-}
-
-impl<T> MaybeData<T> {
-    /// Overwrites the potentially uninitialized `MaybeData` with new data without dropping the
-    /// old value. Returns a reference to the new data. This is safe because rust does not
-    /// give the guarantees that destructors are always called. Still there is a danger
-    /// because of this that some resources may be leaked.
-    #[inline(always)]
-    pub fn write(&mut self, val: T) -> &mut T {
-        self.data = ManuallyDrop::new(val);
-        // SAFETY: We just initialized this value.
-        unsafe { &mut self.data }
-    }
-}
-
 /// The type of the freelist node. When used (node is free) then this is a cyclic list with
 /// pointers *always* pointing to some valid entry (pointing to itself when this is the only
 /// node in the list).
@@ -32,24 +10,37 @@ pub(crate) struct FreelistNode<T> {
 }
 
 /// Entries within a Pool.
-#[repr(C, align(8))]
-pub(crate) struct Entry<T> {
-    pub(crate) maybe_data: MaybeData<T>,
+pub union Entry<T> {
+    pub(crate) data: ManuallyDrop<T>,
+    pub(crate) freelist_node: ManuallyDrop<FreelistNode<T>>,
 }
 
 // PLANNED: eventually (when stable) use https://github.com/rust-lang/rust/issues/44874
 //          pub(crate) unsafe fn foo(self: *mut Self)
 
 impl<T> Entry<T> {
+    /// Overwrites the potentially uninitialized `Entry` with new data without dropping the
+    /// old value. Returns a reference to the new data. This is safe because rust does not
+    /// give the guarantees that destructors are always called. Still there is a danger
+    /// because of this that some resources may be leaked. The onsen API ensures that the user
+    /// only ever gets an Entry reference when this is not a linked freelist node, actually
+    /// only the `Slot::get_uninit()` will expose an &mut Entry which makes this safe.
+    #[inline(always)]
+    pub fn write(&mut self, val: T) -> &mut T {
+        self.data = ManuallyDrop::new(val);
+        // SAFETY: We just initialized this value.
+        unsafe { &mut self.data }
+    }
+
     /// Removes an entry from the freelist and returns the entry that was next to self, if any.
     pub(crate) unsafe fn remove_free_node(&mut self) -> Option<NonNull<Entry<T>>> {
-        let next = self.maybe_data.freelist_node.next;
+        let next = self.freelist_node.next;
         if next == self {
             // single node in list, nothing need to be done.
             None
         } else {
             // unlink from list
-            let prev = self.maybe_data.freelist_node.prev;
+            let prev = self.freelist_node.prev;
             Entry::set_next(prev, next);
             Entry::set_prev(next, prev);
 
@@ -102,22 +93,22 @@ impl<T> Entry<T> {
 
     #[inline(always)]
     unsafe fn next(this: *mut Self) -> *mut Self {
-        (*(*this).maybe_data.freelist_node).next
+        (*(*this).freelist_node).next
     }
 
     #[inline(always)]
     unsafe fn prev(this: *mut Self) -> *mut Self {
-        (*(*this).maybe_data.freelist_node).prev
+        (*(*this).freelist_node).prev
     }
 
     #[inline(always)]
     unsafe fn set_next(this: *mut Self, that: *mut Self) {
-        (*(*this).maybe_data.freelist_node).next = that;
+        (*(*this).freelist_node).next = that;
     }
 
     #[inline(always)]
     unsafe fn set_prev(this: *mut Self, that: *mut Self) {
-        (*(*this).maybe_data.freelist_node).prev = that;
+        (*(*this).freelist_node).prev = that;
     }
 }
 
@@ -125,12 +116,10 @@ impl<T> Entry<T> {
 #[test]
 fn entry_layout() {
     let e = Entry {
-        maybe_data: MaybeData {
-            data: ManuallyDrop::new(String::from("Hello")),
-        },
+        data: ManuallyDrop::new(String::from("Hello")),
     };
     assert_eq!(
         (&e) as *const Entry<String> as usize,
-        (&e.maybe_data) as *const MaybeData<String> as usize
+        (&e) as *const Entry<String> as usize
     );
 }
