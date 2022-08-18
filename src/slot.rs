@@ -88,14 +88,9 @@ impl DropPolicy for NaNTagging {}
 
 impl<T> Slot<T, Uninitialized> {
     /// Get a reference to the uninitialized memory at slot.
-    ///
-    /// # Safety
-    ///
-    /// The obtained references must be dropped before `self.assume_init()` is
-    /// called as this would violate the Pin guarantees.
     #[inline]
-    pub unsafe fn get_uninit(&mut self) -> &mut MaybeData<T> {
-        &mut self.0.as_mut().maybe_data
+    pub fn get_uninit(&mut self) -> &mut MaybeData<T> {
+        unsafe { &mut self.0.as_mut().maybe_data }
     }
 
     /// Tags the object at slot as initialized. Return an initialized Slot.
