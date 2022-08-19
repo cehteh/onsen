@@ -80,11 +80,14 @@ pub enum Pinnable {}
 impl Policy for Pinnable {}
 impl DropPolicy for Pinnable {}
 impl CanGetReference for Pinnable {}
+impl CanTakeValue for Pinnable {}
 
 /// The Slot can provide NaN tagged identifiers
 pub enum NaNTagging {}
 impl Policy for NaNTagging {}
 impl DropPolicy for NaNTagging {}
+impl CanGetReference for NaNTagging {}
+impl CanTakeValue for NaNTagging {}
 
 impl<T> Slot<T, Uninitialized> {
     /// Get a reference to the uninitialized memory at slot.
