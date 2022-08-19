@@ -27,7 +27,7 @@ impl<T, S: Policy> Slot<T, S> {
     }
 }
 
-/// Root of the typestate policies
+/// Base of the typestate policies.
 pub trait Policy {}
 
 /// Implements how/if the content of a slot shall be dropped.
@@ -40,12 +40,12 @@ pub trait DropPolicy: Policy {
     }
 }
 
-/// Permits getting a reference to the value
+/// Permits getting a immutable reference to the value.
 pub trait CanGetReference: Policy {}
-/// Permits destroying the Slot by taking the Value out of it
+/// Permits destroying the Slot by taking the Value out of it.
 pub trait CanTakeValue: Policy {}
 
-/// The Slot holds uninitialized memory
+/// Holds uninitialized memory.
 pub enum Uninitialized {}
 impl Policy for Uninitialized {}
 impl DropPolicy for Uninitialized {
@@ -54,28 +54,28 @@ impl DropPolicy for Uninitialized {
     fn manually_drop<T>(_data: &mut std::mem::ManuallyDrop<T>) {}
 }
 
-/// The Slot holds an initialized value
+/// Holds an initialized value.
 pub enum Initialized {}
 impl Policy for Initialized {}
 impl DropPolicy for Initialized {}
 impl CanGetReference for Initialized {}
 impl CanTakeValue for Initialized {}
 
-/// The Slot can provide mutable references to the value
+/// Initialized, mutable references are permitted.
 pub enum Mutable {}
 impl Policy for Mutable {}
 impl DropPolicy for Mutable {}
 impl CanGetReference for Mutable {}
 impl CanTakeValue for Mutable {}
 
-/// The Slot can provide pinned references to the value
+/// Initialized, pinned references are permitted.
 pub enum Pinnable {}
 impl Policy for Pinnable {}
 impl DropPolicy for Pinnable {}
 impl CanGetReference for Pinnable {}
 impl CanTakeValue for Pinnable {}
 
-/// The Slot can provide NaN tagged identifiers
+/// Initialized, NaN tagged identifier API.
 pub enum NaNTagging {}
 impl Policy for NaNTagging {}
 impl DropPolicy for NaNTagging {}

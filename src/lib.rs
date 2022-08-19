@@ -22,7 +22,7 @@ mod slot;
 pub use slot::*;
 
 mod entry;
-use entry::*;
+pub use entry::*;
 
 mod boxed;
 pub use boxed::*;

@@ -9,7 +9,8 @@ pub(crate) struct FreelistNode<T> {
     pub next: *mut Entry<T>,
 }
 
-/// Entries within a Pool.
+/// Entries within a Pool. This can either hold user data (potentially uninitialized) or the
+/// freelist node.
 pub union Entry<T> {
     pub(crate) data: ManuallyDrop<T>,
     pub(crate) freelist_node: ManuallyDrop<FreelistNode<T>>,
