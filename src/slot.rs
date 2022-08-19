@@ -42,14 +42,8 @@ pub trait DropPolicy: Policy {
 
 /// Permits getting a reference to the value
 pub trait CanGetReference: Policy {}
-/// Permits getting a mutable reference to the value
-pub trait CanGetMutReference: Policy {}
 /// Permits destroying the Slot by taking the Value out of it
 pub trait CanTakeValue: Policy {}
-/// Permits getting a `Pin<&T>` to the value
-pub trait CanGetPin: Policy {}
-/// Permits using the NaN tagging facilities
-pub trait CanTakeNaNTag: Policy {}
 
 /// The Slot holds uninitialized memory
 pub enum Uninitialized {}
@@ -72,7 +66,6 @@ pub enum Mutable {}
 impl Policy for Mutable {}
 impl DropPolicy for Mutable {}
 impl CanGetReference for Mutable {}
-impl CanGetMutReference for Mutable {}
 impl CanTakeValue for Mutable {}
 
 /// The Slot can provide pinned references to the value
