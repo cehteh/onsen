@@ -11,6 +11,7 @@ pub(crate) struct FreelistNode<T> {
 
 /// Entries within a Pool. This can either hold user data (potentially uninitialized) or the
 /// freelist node.
+#[repr(align(8))]
 pub union Entry<T> {
     pub(crate) data: ManuallyDrop<T>,
     pub(crate) freelist_node: ManuallyDrop<FreelistNode<T>>,
