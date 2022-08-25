@@ -9,7 +9,7 @@ fn rust_box_drop() {
 }
 
 fn onsen_box_drop(pool: &onsen::Pool<u64>) {
-    black_box(pool.alloc_box(0u64));
+    black_box(onsen::Box::new(0u64, pool));
 }
 
 // allocate many elements into a preallocated Vec and drop them all at the end
@@ -23,7 +23,7 @@ fn rust_box_many(howmany: usize) {
 fn onsen_box_many<'a>(howmany: usize, pool: &'a onsen::Pool<u64>) {
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
-        keep.push(pool.alloc_box(0u64));
+        keep.push(onsen::Box::new(0u64, pool));
     }
 }
 
@@ -52,7 +52,7 @@ fn onsen_box_many_with_drop<'a>(howmany: usize, drop_percent: u32, pool: &'a ons
     let mut state = 0xbabeface_u32;
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
-        keep.push(Some(pool.alloc_box(0u64)));
+        keep.push(Some(onsen::Box::new(0u64, pool)));
         if fast_prng(&mut state) % 100 < drop_percent {
             let pos = fast_prng(&mut state) as usize % keep.len();
             keep[pos] = None;

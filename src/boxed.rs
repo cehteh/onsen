@@ -34,17 +34,43 @@ impl<T> Box<'_, T> {
     }
 }
 
+impl<'a, T> Box<'a, T> {
+    /// Allocate a Box from a Pool. The allocated Box must not outlive the Pool it was created
+    /// from.
+    #[inline]
+    pub fn new(t: T, pool: &'a Pool<T>) -> Self {
+        Self {
+            slot: pool.alloc(t).for_mutation(),
+            pool,
+        }
+    }
+}
+
+impl<'a, T: Default> Box<'a, T> {
+    /// Allocate a default initialized Box from a Pool. The allocated Box must not outlive the
+    /// Pool it was created from.
+    #[inline]
+    pub fn default(pool: &'a Pool<T>) -> Self {
+        Box::new(T::default(), pool)
+    }
+}
+
 impl<'a, T: Default> Pool<T> {
     /// Allocate a default initialized Box from a Pool.
+    // TODO: remove before v1.0
     #[inline]
+    #[deprecated(since = "0.10.0", note = "please use `Box::default()` instead")]
     pub fn default_box(&'a self) -> Box<'a, T> {
+        #[allow(deprecated)]
         self.alloc_box(T::default())
     }
 }
 
 impl<'a, T> Pool<T> {
     /// Allocate a Box from a Pool.
+    // TODO: remove before v1.0
     #[inline]
+    #[deprecated(since = "0.10.0", note = "please use `Box::new()` instead")]
     pub fn alloc_box(&'a self, t: T) -> Box<'a, T> {
         Box {
             slot: self.alloc(t).for_mutation(),
@@ -227,31 +253,6 @@ mod tests {
     #[test]
     fn smoke() {
         let pool: Pool<&str> = Pool::new();
-        let _mybox = pool.alloc_box("Boxed");
-    }
-
-    #[test]
-    fn deref() {
-        let pool: Pool<&str> = Pool::new();
-        let mybox = pool.alloc_box("Boxed");
-        assert_eq!(*mybox, "Boxed");
-    }
-
-    #[test]
-    fn deref_mut() {
-        let pool: Pool<&str> = Pool::new();
-        let mut mybox = pool.alloc_box("Boxed");
-        *mybox = "Changed";
-        assert_eq!(*mybox, "Changed");
-    }
-
-    #[test]
-    fn eq() {
-        let pool: Pool<&str> = Pool::new();
-        let box1 = pool.alloc_box("Boxed");
-        let box2 = pool.alloc_box("Boxed");
-        let box3 = pool.alloc_box("Boxed again");
-        assert_eq!(box1, box2);
-        assert_ne!(box1, box3);
+        let _mybox = Box::new("Boxed", &pool);
     }
 }

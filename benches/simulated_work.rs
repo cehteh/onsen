@@ -368,7 +368,7 @@ impl<'a> Worker<'a> for SmallOnsenWorker {
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(self.pool.alloc_box(Data::new(primary)))
+        Some(onsen::Box::new(Data::new(primary), &self.pool))
     }
 }
 
@@ -381,7 +381,7 @@ impl<'a> Worker<'a> for MedOnsenWorker {
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(self.pool.alloc_box(Data::new(primary)))
+        Some(onsen::Box::new(Data::new(primary), &self.pool))
     }
 }
 
@@ -394,7 +394,7 @@ impl<'a> Worker<'a> for BigOnsenWorker {
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(self.pool.alloc_box(Data::new(primary)))
+        Some(onsen::Box::new(Data::new(primary), &self.pool))
     }
 }
 
