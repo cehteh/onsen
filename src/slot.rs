@@ -82,6 +82,10 @@ impl DropPolicy for NaNTagging {}
 impl CanGetReference for NaNTagging {}
 impl CanTakeValue for NaNTagging {}
 
+/// Uninitialized slots are allocated with `pool.alloc_uninit()` as the name says they are
+/// only allocated yet but do not contain an initialized value. Similar to `MaybeUninit` one
+/// can obtain a reference to an `Entry` to this slot and then `write()` a value to it. When
+/// done so the slot is transformed into a initialized slot with `assume_init()`.
 impl<T> Slot<T, Uninitialized> {
     /// Get a reference to the uninitialized memory at slot.
     #[inline]
@@ -101,6 +105,8 @@ impl<T> Slot<T, Uninitialized> {
     }
 }
 
+/// Initialized slots hold a valid value. When mutation is required it has to be
+/// translated into on of the more specific policies with the following methods.
 impl<T> Slot<T, Initialized> {
     /// Transforms an initialized Slot into one that can be mutated by references
     #[inline]
@@ -124,6 +130,7 @@ impl<T> Slot<T, Initialized> {
     }
 }
 
+/// Allows one to obtain a mutable reference.
 impl<T> Slot<T, Mutable> {
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
     #[inline]
@@ -144,6 +151,7 @@ impl<T> Slot<T, Mutable> {
     }
 }
 
+/// Allows one to obtain a mutable pinned reference with `get_pin()`.
 impl<T> Slot<T, Pinnable> {
     /// Get a pinned reference to the object in slot, where slot must be an allocated
     /// slot. Since all Pool allocations are at stable slotesses it is straightforward to
@@ -154,6 +162,8 @@ impl<T> Slot<T, Pinnable> {
     }
 }
 
+/// For slots that are initialized it is always possible to get a immutable reference to the
+/// value.
 impl<T, S: CanGetReference> Slot<T, S> {
     /// Get a immutable reference to the object in slot, where slot must hold an initialized
     /// object.
@@ -164,6 +174,8 @@ impl<T, S: CanGetReference> Slot<T, S> {
     }
 }
 
+/// Implements the NaN-Tagging API. This is u64 that can be OR'ed with a mask to form a quiet
+/// NaN.
 impl<T> Slot<T, NaNTagging> {
     /// Zero cost conversion to a u64 identifier of the slot. This identifier is guaranteed
     /// to represent a 48bit wide 8-aligned pointer. Thus highest 16 bits and the last 3 bits
