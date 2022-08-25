@@ -149,7 +149,7 @@ impl<T> Slot<T, Pinnable> {
     /// slot. Since all Pool allocations are at stable slotesses it is straightforward to
     /// give Pin guarantees for them. One only need to make sure not to violate the Pin
     /// guarantees by calling unsafe functions
-    pub fn pin(&mut self) -> Pin<&mut T> {
+    pub fn get_pin(&mut self) -> Pin<&mut T> {
         unsafe { Pin::new_unchecked(&mut self.0.as_mut().data) }
     }
 }
