@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
+use std::sync::Mutex;
 
 use crate::*;
 
@@ -21,6 +22,40 @@ impl<T> PoolApi<T> for Pool<T> {}
 impl<T> PoolLock<T> for &Pool<T> {
     fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R {
         f(&mut self.0.borrow_mut())
+    }
+}
+
+impl<T> Default for Pool<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A threadsafe, interior mutable memory Pool holding objects of type T.  The whole pool is
+/// protected by a single lock, thread safety is not meant to scale here. When scalability
+/// over many threads is needed then onsen is not the right tool.
+pub struct TPool<T: Sized>(Mutex<PoolInner<T>>);
+
+impl<T> TPool<T> {
+    /// Creates a new `TPool` for objects of type T.
+    #[inline]
+    #[must_use]
+    pub fn new() -> Self {
+        Self(Mutex::new(PoolInner::new()))
+    }
+}
+
+impl<T> PoolApi<T> for TPool<T> {}
+
+impl<T> PoolLock<T> for &TPool<T> {
+    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R {
+        f(&mut self.0.lock().expect("Failed to lock Mutex"))
+    }
+}
+
+impl<T> Default for TPool<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -279,14 +314,8 @@ impl<T> PoolInner<T> {
     }
 }
 
-impl<T> Default for Pool<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
-mod tests {
+mod pool_tests {
     use crate::*;
 
     #[test]
@@ -297,6 +326,23 @@ mod tests {
     #[test]
     fn leak() {
         let pool: Pool<u64> = Pool::new();
+        let _ = pool.alloc(1234);
+        pool.leak();
+    }
+}
+
+#[cfg(test)]
+mod tpool_tests {
+    use crate::*;
+
+    #[test]
+    fn smoke() {
+        let _pool: TPool<String> = TPool::new();
+    }
+
+    #[test]
+    fn leak() {
+        let pool: TPool<u64> = TPool::new();
         let _ = pool.alloc(1234);
         pool.leak();
     }
