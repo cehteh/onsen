@@ -33,6 +33,16 @@ impl<T> Rc<'_, T> {
 }
 
 impl<'a, T> Rc<'a, T> {
+    /// Allocate a Rc from a Pool. The allocated Rc must not outlive the Pool it was created
+    /// from.
+    #[inline]
+    pub fn new(t: T, pool: &'a Pool<RcInner<T>>) -> Self {
+        Self {
+            slot: pool.alloc(RcInner::new(t)).for_mutation(),
+            pool,
+        }
+    }
+
     /// Creates a Weak reference from a Rc.
     #[must_use]
     pub fn downgrade(this: &Self) -> Weak<'a, T> {
@@ -43,6 +53,15 @@ impl<'a, T> Rc<'a, T> {
                 pool: this.pool,
             }
         }
+    }
+}
+
+impl<'a, T: Default> Rc<'a, T> {
+    /// Allocate a default initialized Rc from a Pool. The allocated Rc must not outlive the
+    /// Pool it was created from.
+    #[inline]
+    pub fn default(pool: &'a Pool<RcInner<T>>) -> Self {
+        Rc::new(T::default(), pool)
     }
 }
 
@@ -61,15 +80,20 @@ impl<T> Clone for Rc<'_, T> {
 
 impl<'a, T: Default> Pool<RcInner<T>> {
     /// Allocate a default initialized Rc from a Pool.
+    // TODO: remove before v1.0
     #[inline]
+    #[deprecated(since = "0.10.0", note = "please use `Rc:new()` instead")]
     pub fn default_rc(&'a mut self) -> Rc<'a, T> {
+        #[allow(deprecated)]
         self.alloc_rc(T::default())
     }
 }
 
 impl<'a, T> Pool<RcInner<T>> {
     /// Allocate a Box from a Pool.
+    // TODO: remove before v1.0
     #[inline]
+    #[deprecated(since = "0.10.0", note = "please use `Rc:default()` instead")]
     pub fn alloc_rc(&'a self, t: T) -> Rc<'a, T> {
         Rc {
             slot: self.alloc(RcInner::new(t)).for_mutation(),
@@ -376,47 +400,6 @@ mod tests {
     #[test]
     fn smoke() {
         let pool = Pool::new();
-        let _myrc = pool.alloc_rc("Rc");
-    }
-
-    #[test]
-    fn macro_test() {
-        let pool = Pool::new();
-        let myrc = pool.alloc_rc("Rc");
-        assert_eq!(*myrc, "Rc");
-    }
-
-    #[test]
-    fn clone() {
-        let pool = Pool::new();
-        let myrc1 = pool.alloc_rc("Rc");
-        let myrc2 = myrc1.clone();
-        let myrc3 = Rc::clone(&myrc2);
-
-        assert_eq!(*myrc1, "Rc");
-        assert_eq!(myrc1, myrc2);
-        assert_eq!(myrc2, myrc3);
-        assert_eq!(Rc::strong_count(&myrc3), 3);
-    }
-
-    #[test]
-    fn deref_mut() {
-        let pool = Pool::new();
-        let mut myrc = pool.alloc_rc("Rc");
-        *myrc = "Changed";
-        assert_eq!(*myrc, "Changed");
-    }
-
-    #[test]
-    fn weak() {
-        let pool = Pool::new();
-        let myrc = pool.alloc_rc("Rc");
-        let weak = Rc::downgrade(&myrc);
-        assert_eq!(weak.strong_count(), 1);
-        assert_eq!(weak.weak_count(), 1);
-        let strong = weak.upgrade().unwrap();
-        assert_eq!(Rc::strong_count(&strong), 2);
-        assert_eq!(myrc, strong);
-        assert_eq!(*strong, "Rc");
+        let _myrc = Rc::new("Rc", &pool);
     }
 }

@@ -28,6 +28,27 @@ impl<T> Sc<'_, T> {
     }
 }
 
+impl<'a, T> Sc<'a, T> {
+    /// Allocate a Sc from a Pool. The allocated Sc must not outlive the Pool it was created
+    /// from.
+    #[inline]
+    pub fn new(t: T, pool: &'a Pool<ScInner<T>>) -> Self {
+        Self {
+            slot: pool.alloc(ScInner::new(t)).for_mutation(),
+            pool,
+        }
+    }
+}
+
+impl<'a, T: Default> Sc<'a, T> {
+    /// Allocate a default initialized Sc from a Pool. The allocated Sc must not outlive the
+    /// Pool it was created from.
+    #[inline]
+    pub fn default(pool: &'a Pool<ScInner<T>>) -> Self {
+        Sc::new(T::default(), pool)
+    }
+}
+
 impl<T> Clone for Sc<'_, T> {
     #[must_use]
     fn clone(&self) -> Self {
@@ -44,7 +65,9 @@ impl<T> Clone for Sc<'_, T> {
 impl<'a, T: Default> Pool<ScInner<T>> {
     /// Allocate a default initialized Sc from a Pool.
     #[inline]
+    #[deprecated(since = "0.10.0", note = "please use `Sc:new()` instead")]
     pub fn default_sc(&'a mut self) -> Sc<'a, T> {
+        #[allow(deprecated)]
         self.alloc_sc(T::default())
     }
 }
@@ -52,6 +75,7 @@ impl<'a, T: Default> Pool<ScInner<T>> {
 impl<'a, T> Pool<ScInner<T>> {
     /// Allocate a Box from a Pool.
     #[inline]
+    #[deprecated(since = "0.10.0", note = "please use `Sc:new()` instead")]
     pub fn alloc_sc(&'a self, t: T) -> Sc<'a, T> {
         Sc {
             slot: self.alloc(ScInner::new(t)).for_mutation(),
@@ -266,34 +290,6 @@ mod tests {
     #[test]
     fn smoke() {
         let pool = Pool::new();
-        let _mysc = pool.alloc_sc("Sc");
-    }
-
-    #[test]
-    fn macro_test() {
-        let pool = Pool::new();
-        let mysc = pool.alloc_sc("Sc");
-        assert_eq!(*mysc, "Sc");
-    }
-
-    #[test]
-    fn clone() {
-        let pool = Pool::new();
-        let mysc1 = pool.alloc_sc("Sc");
-        let mysc2 = mysc1.clone();
-        let mysc3 = Sc::clone(&mysc2);
-
-        assert_eq!(*mysc1, "Sc");
-        assert_eq!(mysc1, mysc2);
-        assert_eq!(mysc2, mysc3);
-        assert_eq!(Sc::strong_count(&mysc3), 3);
-    }
-
-    #[test]
-    fn deref_mut() {
-        let pool = Pool::new();
-        let mut mysc = pool.alloc_sc("Sc");
-        *mysc = "Changed";
-        assert_eq!(*mysc, "Changed");
+        let _mysc = Sc::new("Sc", &pool);
     }
 }

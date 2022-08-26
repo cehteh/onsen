@@ -3,20 +3,13 @@ use onsen::*;
 #[test]
 fn smoke() {
     let pool = Pool::new();
-    let _mysc = pool.alloc_sc("Sc");
-}
-
-#[test]
-fn macro_test() {
-    let pool = Pool::new();
-    let mysc = pool.alloc_sc("Sc");
-    assert_eq!(*mysc, "Sc");
+    let _mysc = Sc::new("Sc", &pool);
 }
 
 #[test]
 fn clone() {
     let pool = Pool::new();
-    let mysc1 = pool.alloc_sc("Sc");
+    let mysc1 = Sc::new("Sc", &pool);
     let mysc2 = mysc1.clone();
     let mysc3 = Sc::clone(&mysc2);
 
@@ -29,7 +22,7 @@ fn clone() {
 #[test]
 fn deref_mut() {
     let pool = Pool::new();
-    let mut mysc = pool.alloc_sc("Sc");
+    let mut mysc = Sc::new("Sc", &pool);
     *mysc = "Changed";
     assert_eq!(*mysc, "Changed");
 }
