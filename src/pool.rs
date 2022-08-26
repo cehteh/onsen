@@ -5,7 +5,7 @@ use std::ptr::NonNull;
 use crate::*;
 
 /// A single threaded, interior mutable memory Pool holding objects of type T.
-pub struct Pool<T: Sized>(pub(crate) RefCell<PoolInner<T>>);
+pub struct Pool<T: Sized>(RefCell<PoolInner<T>>);
 
 impl<T> Pool<T> {
     /// Creates a new Pool for objects of type T.
