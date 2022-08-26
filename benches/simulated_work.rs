@@ -3,6 +3,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use std::time::Duration;
 
 use onsen;
+use onsen::PoolApi;
 
 // The data we work on contains a primary value used for sorting and some payload which becomes mutated
 pub struct Data<const N: usize> {

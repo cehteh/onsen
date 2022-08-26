@@ -4,15 +4,7 @@ use std::ptr::NonNull;
 
 use crate::*;
 
-/// A Memory Pool holding objects of type T.
-///
-/// The pool can not track how many references to a slot are active. This makes all
-/// `free()`, `forget()` and `take()` unsafe. Thus they have to be carefully protected by RAII
-/// guards or other means. Another approach is to use the *address* for all addressing and
-/// convert to references only on demand and drop the reference as soon as possible.
-///
-/// The Pool API is pretty low-level and frequently unsafe is intended to be used to build
-/// safe high level abstractions.
+/// A single threaded, interior mutable memory Pool holding objects of type T.
 pub struct Pool<T: Sized>(pub(crate) RefCell<PoolInner<T>>);
 
 impl<T> Pool<T> {
@@ -20,9 +12,39 @@ impl<T> Pool<T> {
     #[inline]
     #[must_use]
     pub fn new() -> Self {
-        Self(PoolInner::new())
+        Self(RefCell::new(PoolInner::new()))
     }
+}
 
+impl<T> PoolApi<T> for Pool<T> {}
+
+impl<T> PoolLock<T> for &Pool<T> {
+    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R {
+        f(&mut self.0.borrow_mut())
+    }
+}
+
+/// Interior mutability of a pool.
+#[doc(hidden)]
+pub trait PoolLock<T> {
+    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R;
+}
+
+/// The API for a Pool. This trait takes care for the locking the interior mutable pools and
+/// default implements all its methods. It is not intended to be implemented by a user.
+///
+/// The pool can not track how many references to a slot are active. This makes all `free()`,
+/// `forget()` and `take()` unsafe. Thus they have to be carefully protected by RAII guards or
+/// other means. Another approach is to use the *address* for all addressing and convert to
+/// references only on demand and drop the reference as soon as possible.
+///
+/// This API is low-level and frequently unsafe is intended to be used to build
+/// safe high level abstractions.
+pub trait PoolApi<T>
+where
+    for<'a> &'a Self: PoolLock<T>,
+    Self: Sized,
+{
     /// Configures the minimum of entries the first block will hold. Must be called before the
     /// first allocation is made. Can be used when the number of entries that will be used is
     /// roughly guessable and or the size of entries is small.  Setting this improves cache
@@ -34,26 +56,22 @@ impl<T> Pool<T> {
     /// # Panics
     ///
     /// When called after the pool made its first allocation.
-    pub fn with_min_entries(&self, min_entries: usize) {
-        assert!(
-            self.0.borrow_mut().blocks[0].is_none(),
-            "min_entries must be set before using the pool"
-        );
-        self.0.borrow_mut().min_entries = min_entries;
+    fn with_min_entries(&self, min_entries: usize) {
+        self.with_lock(|pool| pool.min_entries = min_entries);
     }
 
     /// Destroys a Pool while leaking its allocated blocks.  The fast way out when one knows
     /// that allocations still exist and will never be returned to to the Pool. Either because
     /// the program exits or because the allocations are meant to stay.
     #[inline]
-    pub fn leak(self) {
+    fn leak(self) {
         std::mem::forget(self);
     }
 
     /// Allocates a new entry, either from the freelist or by extending the pool.
     /// Returns Entry pointer tagged as UNINITIALIZED.
     fn alloc_entry(&self) -> NonNull<Entry<T>> {
-        self.0.borrow_mut().alloc_entry()
+        self.with_lock(|pool| pool.alloc_entry())
     }
 
     /// Allocates a new slot from the pool, initializes it with the supplied object and
@@ -62,7 +80,7 @@ impl<T> Pool<T> {
     /// obtained from it are not used after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     #[inline]
-    pub fn alloc(&self, t: T) -> Slot<T, Initialized> {
+    fn alloc(&self, t: T) -> Slot<T, Initialized> {
         let mut entry = self.alloc_entry();
         unsafe {
             *entry.as_mut() = Entry {
@@ -77,10 +95,11 @@ impl<T> Pool<T> {
     /// See `slot.free()` for details.
     #[allow(clippy::missing_safety_doc)]
     #[allow(clippy::missing_panics_doc)]
-    pub unsafe fn free_by_ref<S: DropPolicy>(&self, slot: &mut Slot<T, S>) {
-        let mut pool = self.0.borrow_mut();
-        S::manually_drop(&mut slot.0.as_mut().data);
-        pool.free_entry(slot.0.as_ptr());
+    unsafe fn free_by_ref<S: DropPolicy>(&self, slot: &mut Slot<T, S>) {
+        self.with_lock(|pool| {
+            S::manually_drop(&mut slot.0.as_mut().data);
+            pool.free_entry(slot.0.as_ptr());
+        });
     }
 
     /// Non consuming variant of `pool.take()`, allows taking slots that are part of other
@@ -88,11 +107,12 @@ impl<T> Pool<T> {
     /// `slot.take()` for details.
     #[allow(clippy::missing_safety_doc)]
     #[allow(clippy::missing_panics_doc)]
-    pub unsafe fn take_by_ref<S: CanTakeValue>(&self, slot: &mut Slot<T, S>) -> T {
-        let mut pool = self.0.borrow_mut();
-        let ret = ManuallyDrop::take(&mut slot.0.as_mut().data);
-        pool.free_entry(slot.0.as_ptr());
-        ret
+    unsafe fn take_by_ref<S: CanTakeValue>(&self, slot: &mut Slot<T, S>) -> T {
+        self.with_lock(|pool| {
+            let ret = ManuallyDrop::take(&mut slot.0.as_mut().data);
+            pool.free_entry(slot.0.as_ptr());
+            ret
+        })
     }
 
     /// Allocates a new slot from the pool, keeps the content uninitialized returns a Slot
@@ -101,7 +121,7 @@ impl<T> Pool<T> {
     /// obtained from is are used after free as this may panic or return another object.
     #[must_use = "Slot is required for freeing memory, dropping it will leak"]
     #[inline]
-    pub fn alloc_uninit(&self) -> Slot<T, Uninitialized> {
+    fn alloc_uninit(&self) -> Slot<T, Uninitialized> {
         Slot::new(self.alloc_entry())
     }
 
@@ -118,7 +138,7 @@ impl<T> Pool<T> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    pub unsafe fn free<S: DropPolicy>(&self, mut slot: Slot<T, S>) {
+    unsafe fn free<S: DropPolicy>(&self, mut slot: Slot<T, S>) {
         self.free_by_ref(&mut slot);
     }
 
@@ -133,7 +153,7 @@ impl<T> Pool<T> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    pub unsafe fn forget<S: Policy>(&self, mut slot: Slot<T, S>) {
+    unsafe fn forget<S: Policy>(&self, mut slot: Slot<T, S>) {
         self.forget_by_ref(&mut slot);
     }
 
@@ -142,9 +162,10 @@ impl<T> Pool<T> {
     /// See `slot.forget()` for details.
     #[allow(clippy::missing_safety_doc)]
     #[allow(clippy::missing_panics_doc)]
-    pub unsafe fn forget_by_ref<S: Policy>(&self, slot: &mut Slot<T, S>) {
-        let mut pool = self.0.borrow_mut();
-        pool.free_entry(slot.0.as_ptr());
+    unsafe fn forget_by_ref<S: Policy>(&self, slot: &mut Slot<T, S>) {
+        self.with_lock(|pool| {
+            pool.free_entry(slot.0.as_ptr());
+        });
     }
 
     /// Takes an object out of the Pool and returns it. The slot at `slot` is put back to the
@@ -162,13 +183,14 @@ impl<T> Pool<T> {
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    pub unsafe fn take<S: CanTakeValue>(&self, mut slot: Slot<T, S>) -> T {
+    unsafe fn take<S: CanTakeValue>(&self, mut slot: Slot<T, S>) -> T {
         self.take_by_ref(&mut slot)
     }
 }
 
-/// Actual Pool implementations bits are behind a `RefCell`
-pub(crate) struct PoolInner<T: Sized> {
+/// Actual Pool implementations bits which need protected access
+#[doc(hidden)]
+pub struct PoolInner<T: Sized> {
     blocks: [Option<Block<T>>; NUM_BLOCKS],
     blocks_allocated: usize,
     min_entries: usize,
@@ -177,14 +199,14 @@ pub(crate) struct PoolInner<T: Sized> {
 }
 
 impl<T> PoolInner<T> {
-    pub(crate) fn new() -> RefCell<Self> {
-        RefCell::new(Self {
+    pub(crate) fn new() -> Self {
+        Self {
             blocks: [(); NUM_BLOCKS].map(|_| None),
             blocks_allocated: 0,
             min_entries: 64,
             in_use: 0,
             freelist: None,
-        })
+        }
     }
 
     /// Allocate an entry, creating a new Block when required.

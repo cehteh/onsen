@@ -2,6 +2,7 @@
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 use onsen;
+use onsen::PoolApi;
 
 // just simple allocate and instantly drop test
 fn rust_box_drop() {
