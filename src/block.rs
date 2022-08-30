@@ -4,6 +4,10 @@ use std::ptr::NonNull;
 
 use crate::*;
 
+// Hugepages can be at most 1GB on current architectures, this is the largest alignment that
+// makes sense.
+const MAX_ALIGN: usize = 1073741824usize;
+
 /// The low level memory blocks and bitmaps.
 ///
 /// PANICS: One must not drop blocks while they are still in use. In debug mode this
@@ -24,7 +28,9 @@ impl<T: Sized> Block<T> {
     // internal ctor
     fn new(capacity: usize) -> Self {
         let layout = Layout::array::<Entry<T>>(capacity).unwrap();
-        let layout = layout.align_to(layout.size().next_power_of_two()).unwrap();
+        let layout = layout
+            .align_to(std::cmp::min(layout.size().next_power_of_two(), MAX_ALIGN))
+            .unwrap();
 
         let memory =
             unsafe { NonNull::new(alloc(layout) as *mut Entry<T>).expect("Allocation failure") };
