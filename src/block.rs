@@ -100,6 +100,17 @@ impl<T> Drop for Block<T> {
     }
 }
 
+use std::fmt;
+impl<T> fmt::Debug for Block<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_struct("Block")
+            .field("len_used", &self.len_used)
+            .field("capacity", &self.capacity)
+            .field("layout", &self.layout)
+            .finish()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::*;

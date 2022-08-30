@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::fmt;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 use std::sync::Mutex;
@@ -28,6 +29,12 @@ impl<T> PoolLock<T> for &Pool<T> {
 impl<T> Default for Pool<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T> fmt::Debug for Pool<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_tuple("Pool").field(&self.0).finish()
     }
 }
 
@@ -311,6 +318,35 @@ impl<T> PoolInner<T> {
         }
         self.in_use -= 1;
         self.freelist = Some(NonNull::new_unchecked(entry));
+    }
+
+    fn freelist_len(&self) -> usize {
+        let mut len = 0;
+        if self.freelist.is_some() {
+            len += 1;
+            let start = self.freelist.unwrap().as_ptr();
+            let mut entry = start;
+            unsafe {
+                while (*entry).freelist_node.next != start {
+                    len += 1;
+                    entry = (*entry).freelist_node.next;
+                }
+            }
+        }
+
+        len
+    }
+}
+
+impl<T> fmt::Debug for PoolInner<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_struct("PoolInner")
+            .field("blocks", &self.blocks)
+            .field("blocks_allocated", &self.blocks_allocated)
+            .field("min_entries", &self.min_entries)
+            .field("in_use", &self.in_use)
+            .field("freelist.len()", &self.freelist_len())
+            .finish()
     }
 }
 
