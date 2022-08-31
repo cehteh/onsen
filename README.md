@@ -61,6 +61,34 @@ easily enforce these in a safe way.
        abstraction around references to enforce this.
 
 
+# Features
+
+Onsen provides a singlethreaded `Pool` which uses a `RefCell` and a multithreaded `TPool` which
+use a Mutex. Additional features are gated with feature flags.
+
+ * **parking_lot** use parking_lot for the TPool (instead std::sync::Mutex). This makes sense
+   when parking lot is already in use. There is no performance benefit from this.
+ * **stpool** Makes STPool available, a singlethreaded pool that uses a ThreadCell which is
+   faster than Mutex based pools and can be moved between threads (cooperatively).
+ * **tbox** Adds the API for boxes that use a global pool per type. The advantage is that there
+   is no lifetime bound on a Pool and the Box does not need to store a reference to its Pool
+   which saves memory.
+ * **st_tbox** use STPool for the tbox API, this enables **tbox** and **stpool** as well.
+
+**st_tbox** is the default. This enables the most complete API with best performance.
+
+## Performance Characteristics
+
+ * Onsen pools are optimized for cache locality and by that to some extend for singlethreaded
+   use. It is best to have one Pool per type per thread.
+
+ * The TPool adds a Mutex to be used in multithreaded cases but its performance is rather
+   poor. Still to reduce dependencies this is the default when using TBoxes.
+
+* The STPool is singlethreaded but can be passed between threads, its performance is much
+   better than Mutex backed Pools. This is especially important when one uses TBoxes.
+
+
 # Benchmarking
 
 Onsen uses criterion for benchmarking, since onsen is made for singlethreaded application its
