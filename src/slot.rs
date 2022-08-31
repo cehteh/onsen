@@ -16,7 +16,6 @@ use crate::*;
 #[repr(transparent)]
 pub struct Slot<T, S: Policy>(pub(crate) NonNull<Entry<T>>, PhantomData<T>, PhantomData<S>);
 
-// While onsen itself is not send/sync the allocated objects may be.
 unsafe impl<T: Send, S: Policy> Send for Slot<T, S> {}
 unsafe impl<T: Sync, S: Policy> Sync for Slot<T, S> {}
 

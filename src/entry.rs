@@ -17,6 +17,9 @@ pub union Entry<T> {
     pub(crate) freelist_node: ManuallyDrop<FreelistNode<T>>,
 }
 
+unsafe impl<T: Send> Send for Entry<T> {}
+unsafe impl<T: Sync> Sync for Entry<T> {}
+
 // PLANNED: eventually (when stable) use https://github.com/rust-lang/rust/issues/44874
 //          pub(crate) unsafe fn foo(self: *mut Self)
 
