@@ -38,34 +38,6 @@ impl<T> fmt::Debug for Pool<T> {
     }
 }
 
-/// A threadsafe, interior mutable memory Pool holding objects of type T.  The whole pool is
-/// protected by a single lock, thread safety is not meant to scale here. When scalability
-/// over many threads is needed then onsen is not the right tool.
-pub struct TPool<T: Sized>(Mutex<PoolInner<T>>);
-
-impl<T> TPool<T> {
-    /// Creates a new `TPool` for objects of type T.
-    #[inline]
-    #[must_use]
-    pub fn new() -> Self {
-        Self(Mutex::new(PoolInner::new()))
-    }
-}
-
-impl<T> PoolApi<T> for TPool<T> {}
-
-impl<T> PoolLock<T> for &TPool<T> {
-    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R {
-        f(&mut self.0.lock().expect("Failed to lock Mutex"))
-    }
-}
-
-impl<T> Default for TPool<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 /// Interior mutability of a pool.
 #[doc(hidden)]
 pub trait PoolLock<T> {

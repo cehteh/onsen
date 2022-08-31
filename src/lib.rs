@@ -18,6 +18,9 @@ use block::*;
 mod pool;
 pub use pool::*;
 
+mod tpool;
+pub use tpool::*;
+
 mod slot;
 pub use slot::*;
 
