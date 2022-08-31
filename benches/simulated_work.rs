@@ -265,6 +265,61 @@ impl DataHandle for onsen::Box<'_, Data<1000>> {
     }
 }
 
+// data in a onsen tbox
+#[cfg(feature = "tbox")]
+struct Bench;
+#[cfg(feature = "tbox")]
+onsen::define_tbox_pool!(Bench: Data<3>);
+#[cfg(feature = "tbox")]
+onsen::define_tbox_pool!(Bench: Data<64>);
+#[cfg(feature = "tbox")]
+onsen::define_tbox_pool!(Bench: Data<1000>);
+
+#[cfg(feature = "tbox")]
+impl DataHandle for onsen::TBox<Data<3>, Bench> {
+    fn primary(&self) -> &u32 {
+        &self.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.payload
+    }
+}
+
+#[cfg(feature = "tbox")]
+impl DataHandle for onsen::TBox<Data<64>, Bench> {
+    fn primary(&self) -> &u32 {
+        &self.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.payload
+    }
+}
+
+#[cfg(feature = "tbox")]
+impl DataHandle for onsen::TBox<Data<1000>, Bench> {
+    fn primary(&self) -> &u32 {
+        &self.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.payload
+    }
+}
+
 // Now implement the workers for owned
 #[repr(C)]
 pub struct SmallOwnedWorker;
@@ -399,6 +454,51 @@ impl<'a> Worker<'a> for BigOnsenWorker {
     }
 }
 
+// Now implement the workers for onsen tbox
+pub struct SmallOnsenTBoxWorker;
+
+pub struct MedOnsenTBoxWorker;
+
+pub struct BigOnsenTBoxWorker;
+
+#[cfg(feature = "tbox")]
+impl<'a> Worker<'a> for SmallOnsenTBoxWorker {
+    type Data = onsen::TBox<Data<3>, Bench>;
+    fn new() -> Self {
+        SmallOnsenTBoxWorker
+    }
+
+    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
+        Some(onsen::TBox::new(Data::new(primary), Bench))
+    }
+}
+
+#[cfg(feature = "tbox")]
+impl<'a> Worker<'a> for MedOnsenTBoxWorker {
+    type Data = onsen::TBox<Data<64>, Bench>;
+    fn new() -> Self {
+        MedOnsenTBoxWorker
+    }
+
+    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
+        Some(onsen::TBox::new(Data::new(primary), Bench))
+    }
+}
+
+#[cfg(feature = "tbox")]
+impl<'a> Worker<'a> for BigOnsenTBoxWorker {
+    type Data = onsen::TBox<Data<1000>, Bench>;
+    fn new() -> Self {
+        BigOnsenTBoxWorker
+    }
+
+    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
+        Some(onsen::TBox::new(Data::new(primary), Bench))
+    }
+}
+
+//
+
 #[inline(always)]
 fn fast_prng(state: &mut u32) -> u32 {
     let rand = *state;
@@ -440,6 +540,16 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
+
+        #[cfg(feature = "tbox")]
+        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            |b, &s| {
+                let worker = SmallOnsenTBoxWorker::new();
+                b.iter(|| {
+                    worker.run_keep(*s);
+                })
+            }
+        });
     }
 
     drop(simulated_work);
@@ -475,6 +585,16 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
+
+        #[cfg(feature = "tbox")]
+        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            |b, &s| {
+                let worker = MedOnsenTBoxWorker::new();
+                b.iter(|| {
+                    worker.run_keep(*s);
+                })
+            }
+        });
     }
 
     drop(simulated_work);
@@ -496,6 +616,16 @@ fn criterion_benchmark(c: &mut Criterion) {
         simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
             |b, &s| {
                 let worker = BigOnsenWorker::new();
+                b.iter(|| {
+                    worker.run_keep(*s);
+                })
+            }
+        });
+
+        #[cfg(feature = "tbox")]
+        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            |b, &s| {
+                let worker = BigOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
@@ -538,6 +668,16 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
+
+        #[cfg(feature = "tbox")]
+        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            |b, &s| {
+                let worker = SmallOnsenTBoxWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
     }
 
     drop(simulated_work);
@@ -573,6 +713,16 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
+
+        #[cfg(feature = "tbox")]
+        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            |b, &s| {
+                let worker = MedOnsenTBoxWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
     }
 
     drop(simulated_work);
@@ -594,6 +744,16 @@ fn criterion_benchmark(c: &mut Criterion) {
         simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
             |b, &s| {
                 let worker = BigOnsenWorker::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        #[cfg(feature = "tbox")]
+        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            |b, &s| {
+                let worker = BigOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })

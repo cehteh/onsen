@@ -10,8 +10,24 @@ keywords = ["allocator", "pool"]
 categories = ["memory-management"]
 
 [features]
+# TBox, using threadcell::ThreadCell/STPool
+default = ["st_tbox"]
+
+# TBox, using std::sync::Mutex/TPool
+#default = ["tbox"]
+
+# TBox, using parking_lot::Mutex/TPool
+#default = ["tbox", "parking_lot"]
+
+tbox = ["dep:assoc_static"]
+stpool = ["dep:threadcell"]
+st_tbox = ["tbox", "stpool"]
+
+
 [dependencies]
+assoc_static = { version = "1.0.0", optional = true}
 parking_lot = { version = "0.12.0", optional = true}
+threadcell = { version = "0.4.0", optional = true}
 
 [dev-dependencies]
 criterion = { version = "0.3", features = ["html_reports"]}

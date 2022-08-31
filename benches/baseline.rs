@@ -4,6 +4,11 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 use onsen;
 use onsen::PoolApi;
 
+#[cfg(feature = "tbox")]
+struct Bench;
+#[cfg(feature = "tbox")]
+onsen::define_tbox_pool!(Bench: u64);
+
 // just simple allocate and instantly drop test
 fn rust_box_drop() {
     black_box(Box::new(0u64));
@@ -11,6 +16,11 @@ fn rust_box_drop() {
 
 fn onsen_box_drop(pool: &onsen::Pool<u64>) {
     black_box(onsen::Box::new(0u64, pool));
+}
+
+#[cfg(feature = "tbox")]
+fn onsen_tbox_drop() {
+    black_box(onsen::TBox::new(0u64, Bench));
 }
 
 // allocate many elements into a preallocated Vec and drop them all at the end
@@ -25,6 +35,14 @@ fn onsen_box_many<'a>(howmany: usize, pool: &'a onsen::Pool<u64>) {
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
         keep.push(onsen::Box::new(0u64, pool));
+    }
+}
+
+#[cfg(feature = "tbox")]
+fn onsen_tbox_many(howmany: usize) {
+    let mut keep = Vec::with_capacity(howmany);
+    for _ in 0..howmany {
+        keep.push(onsen::TBox::new(0u64, Bench));
     }
 }
 
@@ -61,16 +79,35 @@ fn onsen_box_many_with_drop<'a>(howmany: usize, drop_percent: u32, pool: &'a ons
     }
 }
 
+#[cfg(feature = "tbox")]
+fn onsen_tbox_many_with_drop(howmany: usize, drop_percent: u32) {
+    let mut state = 0xbabeface_u32;
+    let mut keep = Vec::with_capacity(howmany);
+    for _ in 0..howmany {
+        keep.push(Some(onsen::TBox::new(0u64, Bench)));
+        if fast_prng(&mut state) % 100 < drop_percent {
+            let pos = fast_prng(&mut state) as usize % keep.len();
+            keep[pos] = None;
+        }
+    }
+}
+
 fn criterion_benchmark(c: &mut Criterion) {
     let mut baseline = c.benchmark_group("baseline drop");
 
     baseline.bench_function("rust box drop", |b| b.iter(|| rust_box_drop()));
 
     baseline.bench_function("onsen box drop", {
-        let pool: onsen::Pool<u64> = onsen::Pool::new();
-        pool.with_min_entries(1000);
-        move |b| b.iter(|| onsen_box_drop(&pool))
+        |b| {
+            let pool: onsen::Pool<u64> = onsen::Pool::new();
+            pool.with_min_entries(1000);
+            b.iter(|| onsen_box_drop(&pool));
+            drop(pool);
+        }
     });
+
+    #[cfg(feature = "tbox")]
+    baseline.bench_function("onsen tbox drop", move |b| b.iter(|| onsen_tbox_drop()));
 
     drop(baseline);
     let mut baseline = c.benchmark_group("baseline keep");
@@ -87,12 +124,17 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
 
         baseline.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
-            let pool: onsen::Pool<u64> = onsen::Pool::new();
-            pool.with_min_entries(1000);
             move |b, &s| {
-                b.iter(|| {
-                    onsen_box_many(*s, &pool);
-                })
+                let pool: onsen::Pool<u64> = onsen::Pool::new();
+                pool.with_min_entries(1000);
+                b.iter(|| onsen_box_many(*s, &pool));
+            }
+        });
+
+        #[cfg(feature = "tbox")]
+        baseline.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            move |b, &s| {
+                b.iter(|| onsen_tbox_many(*s));
             }
         });
     }
@@ -112,13 +154,16 @@ fn criterion_benchmark(c: &mut Criterion) {
         });
 
         baseline.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
-            let pool: onsen::Pool<u64> = onsen::Pool::new();
-            pool.with_min_entries(1000);
             move |b, &s| {
-                b.iter(|| {
-                    onsen_box_many_with_drop(*s, 50, &pool);
-                })
+                let pool: onsen::Pool<u64> = onsen::Pool::new();
+                pool.with_min_entries(1000);
+                b.iter(|| onsen_box_many_with_drop(*s, 50, &pool));
             }
+        });
+
+        #[cfg(feature = "tbox")]
+        baseline.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
+            move |b, &s| b.iter(|| onsen_tbox_many_with_drop(*s, 50))
         });
     }
 

@@ -2,7 +2,6 @@ use std::cell::RefCell;
 use std::fmt;
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
-use std::sync::Mutex;
 
 use crate::*;
 
@@ -13,7 +12,7 @@ impl<T> Pool<T> {
     /// Creates a new Pool for objects of type T.
     #[inline]
     #[must_use]
-    pub fn new() -> Self {
+    pub const fn new() -> Self {
         Self(RefCell::new(PoolInner::new()))
     }
 }
@@ -21,6 +20,7 @@ impl<T> Pool<T> {
 impl<T> PoolApi<T> for Pool<T> {}
 
 impl<T> PoolLock<T> for &Pool<T> {
+    #[inline]
     fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R {
         f(&mut self.0.borrow_mut())
     }
@@ -212,10 +212,21 @@ pub struct PoolInner<T: Sized> {
     freelist: Option<NonNull<Entry<T>>>,
 }
 
+unsafe impl<T: Sized + Send> Send for PoolInner<T> {}
+
 impl<T> PoolInner<T> {
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self {
-            blocks: [(); NUM_BLOCKS].map(|_| None),
+            // blocks: [(); NUM_BLOCKS].map(|_| None),  // doesn't work in constfn :/
+
+            // TODO:  https://github.com/rust-lang/rust/issues/76001
+            // which reduces it down to just `[const { None }; SIZE]`
+            blocks: [
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None,
+            ],
             blocks_allocated: 0,
             min_entries: 64,
             in_use: 0,
