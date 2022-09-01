@@ -96,7 +96,7 @@ where
     /// Get a reference to the associated pool of this `TBox` type
     #[inline]
     #[must_use]
-    pub fn get_pool() -> &'static TBoxPool<T> {
+    pub fn pool() -> &'static TBoxPool<T> {
         T::get_static()
     }
 }
@@ -338,20 +338,20 @@ mod tests {
     #[test]
     #[serial]
     fn smoke() {
-        TBox::<&'static str, ()>::get_pool().acquire().unwrap();
+        TBox::<&'static str, ()>::pool().acquire().unwrap();
 
         {
             let _mybox = TBox::new("TBoxed", ());
         }
 
-        TBox::<&'static str, ()>::get_pool().release().unwrap();
+        TBox::<&'static str, ()>::pool().release().unwrap();
     }
 
     #[test]
     #[serial]
     #[ignore]
     fn alloc_many() {
-        TBox::<&'static str, ()>::get_pool().acquire().unwrap();
+        TBox::<&'static str, ()>::pool().acquire().unwrap();
         {
             const HOWMANY: usize = 100000000;
             let mut vec = Vec::with_capacity(HOWMANY);
@@ -359,6 +359,6 @@ mod tests {
                 vec.push(TBox::new(i as u64, ()));
             }
         }
-        TBox::<&'static str, ()>::get_pool().release().unwrap();
+        TBox::<&'static str, ()>::pool().release().unwrap();
     }
 }

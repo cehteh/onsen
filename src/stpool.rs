@@ -23,7 +23,7 @@ use crate::*;
 /// define_tbox_pool!(MyTag: u8);
 ///
 /// // acquire the pool before doing work
-/// TBox::<u8, MyTag>::get_pool().acquire().expect("some other thread owns the pool");
+/// TBox::<u8, MyTag>::pool().acquire().expect("some other thread owns the pool");
 ///
 /// // Do some work
 /// {
@@ -35,7 +35,7 @@ use crate::*;
 /// //
 /// // Important: If any access to the pool follows this, including
 /// //            dropping boxes, the thread will panic!
-/// TBox::<u8, MyTag>::get_pool().release().expect("did not own the pool");
+/// TBox::<u8, MyTag>::pool().release().expect("did not own the pool");
 /// ```
 pub struct STPool<T: Sized>(ThreadCell<RefCell<PoolInner<T>>>);
 

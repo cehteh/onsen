@@ -369,13 +369,13 @@ mod tests {
     #[ignore]
     #[serial]
     fn smoke() {
-        TBox::<&'static str, ()>::get_pool()
+        TBox::<&'static str, ()>::pool()
             .acquire()
             .expect("some other thread owns the pool");
 
         let _mybox = TSc::new("TBoxed", ());
 
-        TBox::<&'static str, ()>::get_pool()
+        TBox::<&'static str, ()>::pool()
             .release()
             .expect("thread does not own the pool");
     }
