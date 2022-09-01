@@ -9,8 +9,6 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::ops::DerefMut;
 
-pub use assoc_static::*;
-
 use crate::*;
 
 /// The pool type backing the `TBox`. Note that `STPool` has the `release()` and `steal()`

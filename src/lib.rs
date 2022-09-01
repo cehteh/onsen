@@ -12,6 +12,9 @@
 /// Maximum number of blocks in a Pool
 pub(crate) const NUM_BLOCKS: usize = 44;
 
+#[doc(hidden)]
+pub use assoc_static::*;
+
 mod block;
 use block::*;
 
