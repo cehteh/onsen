@@ -11,6 +11,10 @@ pub struct Data<const N: usize> {
     payload: [u32; N],
 }
 
+type SmallData = Data<3>;
+type MedData = Data<64>;
+type BigData = Data<1000>;
+
 impl<const N: usize> Data<N> {
     fn new(primary: u32) -> Self {
         Data {
@@ -129,9 +133,9 @@ trait Worker<'a> {
 }
 
 /// Owned data (copypaste, workaround the lack of GAT's, eventually needs macro or wait for GAT's)
-pub struct SmallOwnedData(Data<3>, usize);
-pub struct MedOwnedData(Data<64>, usize);
-pub struct BigOwnedData(Data<1000>, usize);
+pub struct SmallOwnedData(SmallData, usize);
+pub struct MedOwnedData(MedData, usize);
+pub struct BigOwnedData(BigData, usize);
 
 impl DataHandle for SmallOwnedData {
     fn primary(&self) -> &u32 {
@@ -176,9 +180,9 @@ impl DataHandle for BigOwnedData {
 }
 
 // data in a rust box
-pub struct SmallBoxedData(Box<Data<3>>);
-pub struct MedBoxedData(Box<Data<64>>);
-pub struct BigBoxedData(Box<Data<1000>>);
+pub struct SmallBoxedData(Box<SmallData>);
+pub struct MedBoxedData(Box<MedData>);
+pub struct BigBoxedData(Box<BigData>);
 
 impl DataHandle for SmallBoxedData {
     fn primary(&self) -> &u32 {
@@ -223,7 +227,7 @@ impl DataHandle for BigBoxedData {
 }
 
 // data in a onsen box
-impl DataHandle for onsen::Box<'_, Data<3>> {
+impl DataHandle for onsen::Box<'_, SmallData> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -237,7 +241,7 @@ impl DataHandle for onsen::Box<'_, Data<3>> {
     }
 }
 
-impl DataHandle for onsen::Box<'_, Data<64>> {
+impl DataHandle for onsen::Box<'_, MedData> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -251,7 +255,7 @@ impl DataHandle for onsen::Box<'_, Data<64>> {
     }
 }
 
-impl DataHandle for onsen::Box<'_, Data<1000>> {
+impl DataHandle for onsen::Box<'_, BigData> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -269,14 +273,14 @@ impl DataHandle for onsen::Box<'_, Data<1000>> {
 #[cfg(feature = "tbox")]
 struct Bench;
 #[cfg(feature = "tbox")]
-onsen::define_tbox_pool!(Bench: Data<3>);
+onsen::define_tbox_pool!(Bench: SmallData);
 #[cfg(feature = "tbox")]
-onsen::define_tbox_pool!(Bench: Data<64>);
+onsen::define_tbox_pool!(Bench: MedData);
 #[cfg(feature = "tbox")]
-onsen::define_tbox_pool!(Bench: Data<1000>);
+onsen::define_tbox_pool!(Bench: BigData);
 
 #[cfg(feature = "tbox")]
-impl DataHandle for onsen::TBox<Data<3>, Bench> {
+impl DataHandle for onsen::TBox<SmallData, Bench> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -291,7 +295,7 @@ impl DataHandle for onsen::TBox<Data<3>, Bench> {
 }
 
 #[cfg(feature = "tbox")]
-impl DataHandle for onsen::TBox<Data<64>, Bench> {
+impl DataHandle for onsen::TBox<MedData, Bench> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -306,7 +310,7 @@ impl DataHandle for onsen::TBox<Data<64>, Bench> {
 }
 
 #[cfg(feature = "tbox")]
-impl DataHandle for onsen::TBox<Data<1000>, Bench> {
+impl DataHandle for onsen::TBox<BigData, Bench> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -404,19 +408,19 @@ impl Worker<'_> for BigBoxWorker {
 
 // // Now implement the workers for onsen boxes
 pub struct SmallOnsenWorker {
-    pool: onsen::Pool<Data<3>>,
+    pool: onsen::Pool<SmallData>,
 }
 
 pub struct MedOnsenWorker {
-    pool: onsen::Pool<Data<64>>,
+    pool: onsen::Pool<MedData>,
 }
 
 pub struct BigOnsenWorker {
-    pool: onsen::Pool<Data<1000>>,
+    pool: onsen::Pool<BigData>,
 }
 
 impl<'a> Worker<'a> for SmallOnsenWorker {
-    type Data = onsen::Box<'a, Data<3>>;
+    type Data = onsen::Box<'a, SmallData>;
     fn new() -> Self {
         let pool = onsen::Pool::new();
         pool.with_min_entries(1000);
@@ -429,7 +433,7 @@ impl<'a> Worker<'a> for SmallOnsenWorker {
 }
 
 impl<'a> Worker<'a> for MedOnsenWorker {
-    type Data = onsen::Box<'a, Data<64>>;
+    type Data = onsen::Box<'a, MedData>;
     fn new() -> Self {
         let pool = onsen::Pool::new();
         pool.with_min_entries(1000);
@@ -442,7 +446,7 @@ impl<'a> Worker<'a> for MedOnsenWorker {
 }
 
 impl<'a> Worker<'a> for BigOnsenWorker {
-    type Data = onsen::Box<'a, Data<1000>>;
+    type Data = onsen::Box<'a, BigData>;
     fn new() -> Self {
         let pool = onsen::Pool::new();
         pool.with_min_entries(1000);
@@ -463,7 +467,7 @@ pub struct BigOnsenTBoxWorker;
 
 #[cfg(feature = "tbox")]
 impl<'a> Worker<'a> for SmallOnsenTBoxWorker {
-    type Data = onsen::TBox<Data<3>, Bench>;
+    type Data = onsen::TBox<SmallData, Bench>;
     fn new() -> Self {
         SmallOnsenTBoxWorker
     }
@@ -475,7 +479,7 @@ impl<'a> Worker<'a> for SmallOnsenTBoxWorker {
 
 #[cfg(feature = "tbox")]
 impl<'a> Worker<'a> for MedOnsenTBoxWorker {
-    type Data = onsen::TBox<Data<64>, Bench>;
+    type Data = onsen::TBox<MedData, Bench>;
     fn new() -> Self {
         MedOnsenTBoxWorker
     }
@@ -487,7 +491,7 @@ impl<'a> Worker<'a> for MedOnsenTBoxWorker {
 
 #[cfg(feature = "tbox")]
 impl<'a> Worker<'a> for BigOnsenTBoxWorker {
-    type Data = onsen::TBox<Data<1000>, Bench>;
+    type Data = onsen::TBox<BigData, Bench>;
     fn new() -> Self {
         BigOnsenTBoxWorker
     }
@@ -544,10 +548,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
+                onsen::TBox::<SmallData, Bench>::get_pool().acquire().unwrap();
                 let worker = SmallOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
-                })
+                });
+                onsen::TBox::<SmallData, Bench>::get_pool().release().unwrap();
             }
         });
     }
@@ -589,10 +595,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
+                onsen::TBox::<MedData, Bench>::get_pool().acquire().unwrap();
                 let worker = MedOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
-                })
+                });
+                onsen::TBox::<MedData, Bench>::get_pool().release().unwrap();
             }
         });
     }
@@ -625,10 +633,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
+                onsen::TBox::<BigData, Bench>::get_pool().acquire().unwrap();
                 let worker = BigOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
-                })
+                });
+                onsen::TBox::<BigData, Bench>::get_pool().release().unwrap();
             }
         });
     }
@@ -672,10 +682,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
+                onsen::TBox::<SmallData, Bench>::get_pool().acquire().unwrap();
                 let worker = SmallOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
-                })
+                });
+                onsen::TBox::<SmallData, Bench>::get_pool().release().unwrap();
             }
         });
     }
@@ -717,10 +729,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
+                onsen::TBox::<MedData, Bench>::get_pool().acquire().unwrap();
                 let worker = MedOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
-                })
+                });
+                onsen::TBox::<MedData, Bench>::get_pool().release().unwrap();
             }
         });
     }
@@ -753,10 +767,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
+                onsen::TBox::<BigData, Bench>::get_pool().acquire().unwrap();
                 let worker = BigOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
-                })
+                });
+                onsen::TBox::<BigData, Bench>::get_pool().release().unwrap();
             }
         });
     }
