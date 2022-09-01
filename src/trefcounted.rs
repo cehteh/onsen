@@ -11,8 +11,7 @@ use std::ops::DerefMut;
 
 use crate::*;
 
-/// The pool type backing the `TBox`. Note that `STPool` has the `release()` and `steal()`
-/// methods which `TPool`does not have.
+/// The pool type backing the `TRc`.
 #[cfg(feature = "st_tbox")]
 #[doc(hidden)]
 pub type TRcPool<T> = STPool<RcInner<T>>;
