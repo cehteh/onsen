@@ -259,13 +259,13 @@ impl<T> fmt::Pointer for Sc<'_, T> {
 
 /// Data including reference counter
 pub struct ScInner<T> {
-    data: MaybeUninit<T>,
+    pub(crate) data: MaybeUninit<T>,
     strong_count: Cell<usize>,
 }
 
 impl<T> ScInner<T> {
     #[inline]
-    fn new(data: T) -> Self {
+    pub(crate) fn new(data: T) -> Self {
         Self {
             data: MaybeUninit::new(data),
             strong_count: Cell::new(1),
@@ -273,12 +273,17 @@ impl<T> ScInner<T> {
     }
 
     #[inline]
-    fn inc_strong(&self) {
+    pub(crate) fn get_strong(&self) -> usize {
+        self.strong_count.get()
+    }
+
+    #[inline]
+    pub(crate) fn inc_strong(&self) {
         self.strong_count.set(self.strong_count.get() + 1);
     }
 
     #[inline]
-    fn dec_strong(&self) {
+    pub(crate) fn dec_strong(&self) {
         self.strong_count.set(self.strong_count.get() - 1);
     }
 }
