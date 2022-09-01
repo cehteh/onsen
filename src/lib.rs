@@ -44,6 +44,10 @@ mod tboxed;
 #[cfg(feature = "tbox")]
 pub use tboxed::*;
 
+mod trefcounted;
+#[cfg(feature = "tbox")]
+pub use trefcounted::*;
+
 /// The error returned when a `STPool` can not be acquired or released.
 #[derive(Debug, Copy, Clone)]
 pub struct PoolOwnershipError;

@@ -357,14 +357,14 @@ impl<T> Drop for Weak<'_, T> {
 
 /// Data including reference counters
 pub struct RcInner<T> {
-    data: MaybeUninit<T>,
+    pub(crate) data: MaybeUninit<T>,
     strong_count: Cell<usize>,
     weak_count: Cell<usize>,
 }
 
 impl<T> RcInner<T> {
     #[inline]
-    fn new(data: T) -> Self {
+    pub(crate) fn new(data: T) -> Self {
         Self {
             data: MaybeUninit::new(data),
             strong_count: Cell::new(1),
@@ -373,22 +373,32 @@ impl<T> RcInner<T> {
     }
 
     #[inline]
-    fn inc_strong(&self) {
+    pub(crate) fn get_strong(&self) -> usize {
+        self.strong_count.get()
+    }
+
+    #[inline]
+    pub(crate) fn get_weak(&self) -> usize {
+        self.weak_count.get()
+    }
+
+    #[inline]
+    pub(crate) fn inc_strong(&self) {
         self.strong_count.set(self.strong_count.get() + 1);
     }
 
     #[inline]
-    fn dec_strong(&self) {
+    pub(crate) fn dec_strong(&self) {
         self.strong_count.set(self.strong_count.get() - 1);
     }
 
     #[inline]
-    fn inc_weak(&self) {
+    pub(crate) fn inc_weak(&self) {
         self.weak_count.set(self.weak_count.get() + 1);
     }
 
     #[inline]
-    fn dec_weak(&self) {
+    pub(crate) fn dec_weak(&self) {
         self.weak_count.set(self.weak_count.get() - 1);
     }
 }
