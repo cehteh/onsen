@@ -18,6 +18,23 @@ impl<T> TPool<T> {
     pub const fn new() -> Self {
         Self(Mutex::new(PoolInner::new()))
     }
+
+    /// Mock the `STPool` API's to make `TPool` a drop in replacement.
+    #[inline(always)]
+    pub fn acquire(&self) -> Result<(), PoolOwnershipError> {
+        Ok(())
+    }
+
+    /// Mock the `STPool` API's to make `TPool` a drop in replacement.
+    #[inline(always)]
+    pub fn release(&self) -> Result<(), PoolOwnershipError> {
+        Ok(())
+    }
+
+    /// Mock the `STPool` API's to make `TPool` a drop in replacement.
+    #[inline(always)]
+    #[allow(clippy::missing_safety_doc)]
+    pub unsafe fn force_release(&self) {}
 }
 
 impl<T> PoolApi<T> for TPool<T> {}

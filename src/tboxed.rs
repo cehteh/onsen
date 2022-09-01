@@ -1,3 +1,4 @@
+#![cfg(feature = "tbox")]
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
@@ -25,7 +26,7 @@ pub type TBoxPool<T> = TPool<T>;
 /// For each type that shall be allocated with `TBoxes` there must be an associated global
 /// memory pool. This is defined with this macro.
 ///
-/// ```
+/// ```rust,ignore
 /// use onsen::*;
 ///
 /// // ZST tag
@@ -331,22 +332,35 @@ where
 #[cfg(test)]
 mod tests {
     use crate::*;
+    use serial_test::serial;
 
     define_tbox_pool!((): &'static str);
     define_tbox_pool!((): u64);
 
     #[test]
+    #[serial]
     fn smoke() {
-        let _mybox = TBox::new("TBoxed", ());
+        TBox::<&'static str, ()>::get_pool().acquire().unwrap();
+
+        {
+            let _mybox = TBox::new("TBoxed", ());
+        }
+
+        TBox::<&'static str, ()>::get_pool().release().unwrap();
     }
 
     #[test]
+    #[serial]
     #[ignore]
     fn alloc_many() {
-        const HOWMANY: usize = 100000000;
-        let mut vec = Vec::with_capacity(HOWMANY);
-        for i in 0..HOWMANY {
-            vec.push(TBox::new(i as u64, ()));
+        TBox::<&'static str, ()>::get_pool().acquire().unwrap();
+        {
+            const HOWMANY: usize = 100000000;
+            let mut vec = Vec::with_capacity(HOWMANY);
+            for i in 0..HOWMANY {
+                vec.push(TBox::new(i as u64, ()));
+            }
         }
+        TBox::<&'static str, ()>::get_pool().release().unwrap();
     }
 }

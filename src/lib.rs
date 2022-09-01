@@ -21,7 +21,6 @@ pub use pool::*;
 mod tpool;
 pub use tpool::*;
 
-#[cfg(feature = "stpool")]
 mod stpool;
 #[cfg(feature = "stpool")]
 pub use stpool::*;
@@ -35,16 +34,19 @@ pub use entry::*;
 mod boxed;
 pub use boxed::*;
 
-#[cfg(feature = "tbox")]
-mod tboxed;
-#[cfg(feature = "tbox")]
-pub use tboxed::*;
-
 mod refcounted;
 pub use refcounted::*;
 
 mod strongcounted;
 pub use strongcounted::*;
+
+mod tboxed;
+#[cfg(feature = "tbox")]
+pub use tboxed::*;
+
+/// The error returned when a `STPool` can not be acquired or released.
+#[derive(Debug, Copy, Clone)]
+pub struct PoolOwnershipError;
 
 #[cfg(test)]
 mod tests {
