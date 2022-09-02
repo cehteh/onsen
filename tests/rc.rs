@@ -2,20 +2,20 @@ use onsen::*;
 
 #[test]
 fn smoke() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let _myrc = Rc::new("Rc", &pool);
 }
 
 #[test]
 fn macro_test() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let myrc = Rc::new("Rc", &pool);
     assert_eq!(*myrc, "Rc");
 }
 
 #[test]
 fn clone() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let myrc1 = Rc::new("Rc", &pool);
     let myrc2 = myrc1.clone();
     let myrc3 = Rc::clone(&myrc2);
@@ -28,7 +28,7 @@ fn clone() {
 
 #[test]
 fn deref_mut() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let mut myrc = Rc::new("Rc", &pool);
     *myrc = "Changed";
     assert_eq!(*myrc, "Changed");
@@ -36,7 +36,7 @@ fn deref_mut() {
 
 #[test]
 fn weak() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let myrc = Rc::new("Rc", &pool);
     let weak = Rc::downgrade(&myrc);
     assert_eq!(weak.strong_count(), 1);
