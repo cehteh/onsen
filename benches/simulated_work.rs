@@ -548,16 +548,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
-                onsen::TBox::<SmallData, Bench>::get_pool()
-                    .acquire()
-                    .unwrap();
+                onsen::TBox::<SmallData, Bench>::pool().acquire().unwrap();
                 let worker = SmallOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 });
-                onsen::TBox::<SmallData, Bench>::get_pool()
-                    .release()
-                    .unwrap();
+                onsen::TBox::<SmallData, Bench>::pool().release().unwrap();
             }
         });
     }
@@ -599,12 +595,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
-                onsen::TBox::<MedData, Bench>::get_pool().acquire().unwrap();
+                onsen::TBox::<MedData, Bench>::pool().acquire().unwrap();
                 let worker = MedOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 });
-                onsen::TBox::<MedData, Bench>::get_pool().release().unwrap();
+                onsen::TBox::<MedData, Bench>::pool().release().unwrap();
             }
         });
     }
@@ -637,12 +633,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
-                onsen::TBox::<BigData, Bench>::get_pool().acquire().unwrap();
+                onsen::TBox::<BigData, Bench>::pool().acquire().unwrap();
                 let worker = BigOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 });
-                onsen::TBox::<BigData, Bench>::get_pool().release().unwrap();
+                onsen::TBox::<BigData, Bench>::pool().release().unwrap();
             }
         });
     }
@@ -686,16 +682,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
-                onsen::TBox::<SmallData, Bench>::get_pool()
-                    .acquire()
-                    .unwrap();
+                onsen::TBox::<SmallData, Bench>::pool().acquire().unwrap();
                 let worker = SmallOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 });
-                onsen::TBox::<SmallData, Bench>::get_pool()
-                    .release()
-                    .unwrap();
+                onsen::TBox::<SmallData, Bench>::pool().release().unwrap();
             }
         });
     }
@@ -737,12 +729,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
-                onsen::TBox::<MedData, Bench>::get_pool().acquire().unwrap();
+                onsen::TBox::<MedData, Bench>::pool().acquire().unwrap();
                 let worker = MedOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 });
-                onsen::TBox::<MedData, Bench>::get_pool().release().unwrap();
+                onsen::TBox::<MedData, Bench>::pool().release().unwrap();
             }
         });
     }
@@ -775,12 +767,12 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             |b, &s| {
-                onsen::TBox::<BigData, Bench>::get_pool().acquire().unwrap();
+                onsen::TBox::<BigData, Bench>::pool().acquire().unwrap();
                 let worker = BigOnsenTBoxWorker::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 });
-                onsen::TBox::<BigData, Bench>::get_pool().release().unwrap();
+                onsen::TBox::<BigData, Bench>::pool().release().unwrap();
             }
         });
     }

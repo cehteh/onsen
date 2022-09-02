@@ -108,9 +108,9 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     #[cfg(feature = "tbox")]
     baseline.bench_function("onsen tbox drop", move |b| {
-        onsen::TBox::<u64, Bench>::get_pool().acquire().unwrap();
+        onsen::TBox::<u64, Bench>::pool().acquire().unwrap();
         b.iter(|| onsen_tbox_drop());
-        onsen::TBox::<u64, Bench>::get_pool().release().unwrap();
+        onsen::TBox::<u64, Bench>::pool().release().unwrap();
     });
 
     drop(baseline);
@@ -138,9 +138,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         baseline.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             move |b, &s| {
-                onsen::TBox::<u64, Bench>::get_pool().acquire().unwrap();
+                onsen::TBox::<u64, Bench>::pool().acquire().unwrap();
                 b.iter(|| onsen_tbox_many(*s));
-                onsen::TBox::<u64, Bench>::get_pool().release().unwrap();
+                onsen::TBox::<u64, Bench>::pool().release().unwrap();
             }
         });
     }
@@ -170,9 +170,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         #[cfg(feature = "tbox")]
         baseline.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
             move |b, &s| {
-                onsen::TBox::<u64, Bench>::get_pool().acquire().unwrap();
+                onsen::TBox::<u64, Bench>::pool().acquire().unwrap();
                 b.iter(|| onsen_tbox_many_with_drop(*s, 50));
-                onsen::TBox::<u64, Bench>::get_pool().release().unwrap();
+                onsen::TBox::<u64, Bench>::pool().release().unwrap();
             }
         });
     }
