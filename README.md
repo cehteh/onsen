@@ -1,25 +1,28 @@
 # Description
 
-Onsen provides a hot Pool for objects.  In most cases allocation from this Pool is faster and
+Onsen provides hot Pools for objects.  In most cases allocation from such a Pool is faster and
 offers better locality than the standard allocator. For small to medium sized objects the
 performance improvement is around 20% or better. For large objects the gains become smaller as
-caching effects even out.
+caching effects even out. These improvements cover operating on objects because of locality,
+not just faster allocation speeds.
 
 
 # Details
 
-An onsen pool allocated blocks with exponentially growing sizes. Allocations are served from
+Onsen pools allocate blocks with exponentially growing sizes. Allocations are served from
 these blocks. Freed entries are kept in a double linked cyclic freelist. This freelist is kept
-in weakly ordered and the entry point always point close to where the last action happend
-to keep the caches hot.
+in weakly ordered and the entry point always point close to where the last action happend to
+keep the caches hot.
 
 
 # Box, Rc and Sc
 
-Onsen comes with its own Box and Rc/Weak implementations that wrap the underlying Pool in a
-safe way. A 'Sc' reference counted box without weak reference support is available as well and
-provides an advantage for small objects where the weak count would add some weight.
+Onsen comes with its own `Box` and `Rc`/`Weak` implementations that wrap the underlying
+`RcPool` in a safe way. A `Sc` reference counted box without weak reference support is
+available as well and provides an advantage for small objects where the weak count would add
+some weight.
 
+For each of these a variant that uses static global pools is avaialble as well.
 
 # Slots
 
@@ -63,8 +66,8 @@ easily enforce these in a safe way.
 
 # Features
 
-Onsen provides a singlethreaded `Pool` which uses a `RefCell` and a multithreaded `TPool` which
-use a Mutex. Additional features are gated with feature flags.
+Onsen provides a singlethreaded `Pool`, a singlethreaded reference counted `RcPool` and a
+multithreaded `TPool`.  Additional features are gated with feature flags.
 
  * **parking_lot** use parking_lot for the TPool (instead std::sync::Mutex). This makes sense
    when parking lot is already in use. There is no significant performance benefit from this.
@@ -89,7 +92,7 @@ use a Mutex. Additional features are gated with feature flags.
 
  * The STPool is singlethreaded but can be cooperatively passed between threads, its
    performance is much better than Mutex backed Pools. This is especially important when one
-   uses TBoxes.
+   uses TBox, TRc or TSc.
 
 
 # Benchmarking
