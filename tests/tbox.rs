@@ -1,3 +1,4 @@
+#![cfg(feature = "tbox")]
 use onsen::*;
 use serial_test::serial;
 
