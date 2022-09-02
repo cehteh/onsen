@@ -19,7 +19,7 @@ pub struct Rc<T> {
 }
 
 impl<T> Rc<T> {
-    /// Allocate a Rc from a RcPool.
+    /// Allocate a `Rc` from a `RcPool`.
     ///
     /// ```
     /// use onsen::*;
@@ -64,7 +64,7 @@ impl<T> Rc<T> {
 }
 
 impl<T: Default> Rc<T> {
-    /// Allocate a default initialized Rc from a RcPool.
+    /// Allocate a default initialized `Rc` from a pool.
     #[inline]
     pub fn default(pool: impl AsRef<RcPool<RcInner<T>>>) -> Self {
         Rc::new(T::default(), pool)
@@ -265,7 +265,7 @@ impl<T> fmt::Pointer for Rc<T> {
     }
 }
 
-/// Weak references do not keep the object alive.
+/// `Weak` references do not keep the object alive.
 pub struct Weak<T> {
     slot: Slot<RcInner<T>, Mutable>,
     pool: RcPool<RcInner<T>>,

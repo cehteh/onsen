@@ -18,7 +18,7 @@ pub struct Box<T> {
 }
 
 impl<T> Box<T> {
-    /// Allocate a Box from a RcPool.
+    /// Allocate a Box from a `RcPool`.
     ///
     /// ```
     /// use onsen::*;
@@ -53,7 +53,7 @@ impl<T> Box<T> {
 }
 
 impl<T: Default> Box<T> {
-    /// Allocate a default initialized Box from a Pool.
+    /// Allocate a default initialized `Box` from a pool.
     #[inline]
     #[must_use]
     pub fn default(pool: impl AsRef<RcPool<T>>) -> Self {

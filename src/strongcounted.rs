@@ -12,7 +12,7 @@ use std::ops::DerefMut;
 use crate::*;
 
 /// A reference counted smart pointer for pool allocated objects. This wraps Slots in a safe
-/// way. Sc's need a `RcPool<ScInner<T>>` as backing pool`.  Sc's do not have a Weak
+/// way. Sc's need a `RcPool<ScInner<T>>` as backing pool.  Sc's do not have a Weak
 /// counterpart. When no Weak functionality is required this can give a space advantage
 /// for small objects and be slightly faster.
 pub struct Sc<T> {
@@ -21,7 +21,7 @@ pub struct Sc<T> {
 }
 
 impl<T> Sc<T> {
-    /// Allocate a `Sc` from a RcPool.
+    /// Allocate a `Sc` from a `RcPool`.
     #[inline]
     pub fn new(t: T, pool: impl AsRef<RcPool<ScInner<T>>>) -> Self {
         Self {
@@ -38,7 +38,7 @@ impl<T> Sc<T> {
 }
 
 impl<T: Default> Sc<T> {
-    /// Allocate a default initialized `Sc` from a `RcPool`.
+    /// Allocate a default initialized `Sc` from a pool.
     #[inline]
     pub fn default(pool: impl AsRef<RcPool<ScInner<T>>>) -> Self {
         Sc::new(T::default(), pool)

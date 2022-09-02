@@ -54,6 +54,8 @@ pub trait PoolLock<T> {
 ///
 /// This API is low-level and frequently unsafe is intended to be used to build
 /// safe high level abstractions.
+///
+/// This trait must be in scope to be used.
 pub trait PoolApi<T>
 where
     for<'a> &'a Self: PoolLock<T>,
