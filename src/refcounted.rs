@@ -20,11 +20,21 @@ pub struct Rc<T> {
 
 impl<T> Rc<T> {
     /// Allocate a Rc from a RcPool.
+    ///
+    /// ```
+    /// use onsen::*;
+    ///
+    /// let pool = RcPool::new();
+    /// let myrc = Rc::new("ReferenceCounted", &pool);
+    ///
+    /// // allocate from the same pool
+    /// let otherrc = Rc::new("ReferenceCounted", &myrc);
+    /// ```
     #[inline]
-    pub fn new(t: T, pool: &RcPool<RcInner<T>>) -> Self {
+    pub fn new(t: T, pool: impl AsRef<RcPool<RcInner<T>>>) -> Self {
         Self {
-            slot: pool.alloc(RcInner::new(t)).for_mutation(),
-            pool: pool.clone(),
+            slot: pool.as_ref().alloc(RcInner::new(t)).for_mutation(),
+            pool: pool.as_ref().clone(),
         }
     }
 
@@ -41,16 +51,6 @@ impl<T> Rc<T> {
     }
 
     /// Associated function that returns a reference to the pool associated with this object.
-    ///
-    /// ```
-    /// use onsen::*;
-    ///
-    /// let pool = RcPool::new();
-    /// let myrc = Rc::new("Boxed", &pool);
-    ///
-    /// // allocate from the same pool
-    /// let otherrc = Rc::new("Boxed", Rc::pool(&myrc));
-    /// ```
     #[inline]
     pub fn pool(this: &Self) -> &RcPool<RcInner<T>> {
         &this.pool
@@ -388,6 +388,13 @@ impl<T> RcInner<T> {
     #[inline]
     pub(crate) fn dec_weak(&self) {
         self.weak_count.set(self.weak_count.get() - 1);
+    }
+}
+
+/// Get a reference to the pool this `Rc` was constructed from.
+impl<T> AsRef<RcPool<RcInner<T>>> for Rc<T> {
+    fn as_ref(&self) -> &RcPool<RcInner<T>> {
+        &self.pool
     }
 }
 

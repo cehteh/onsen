@@ -19,15 +19,6 @@ pub struct Box<T> {
 
 impl<T> Box<T> {
     /// Allocate a Box from a RcPool.
-    #[inline]
-    pub fn new(t: T, pool: &RcPool<T>) -> Self {
-        Self {
-            slot: pool.alloc(t).for_mutation(),
-            pool: pool.clone(),
-        }
-    }
-
-    /// Associated function that returns a reference to the pool associated with this object.
     ///
     /// ```
     /// use onsen::*;
@@ -36,11 +27,14 @@ impl<T> Box<T> {
     /// let mybox = Box::new("Boxed", &pool);
     ///
     /// // allocate from the same pool
-    /// let otherbox = Box::new("Boxed", Box::pool(&mybox));
+    /// let otherbox = Box::new("Boxed", &mybox);
     /// ```
     #[inline]
-    pub fn pool(this: &Self) -> &RcPool<T> {
-        &this.pool
+    pub fn new(t: T, pool: impl AsRef<RcPool<T>>) -> Self {
+        Self {
+            slot: pool.as_ref().alloc(t).for_mutation(),
+            pool: pool.as_ref().clone(),
+        }
     }
 
     /// Associated function that frees the memory of a Box without calling the destructor of
@@ -230,6 +224,13 @@ impl<T> fmt::Pointer for Box<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr: *const T = &**self;
         fmt::Pointer::fmt(&ptr, f)
+    }
+}
+
+/// Get a reference to the pool this `Box` was constructed from.
+impl<T> AsRef<RcPool<T>> for Box<T> {
+    fn as_ref(&self) -> &RcPool<T> {
+        &self.pool
     }
 }
 

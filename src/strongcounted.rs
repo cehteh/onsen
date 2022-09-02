@@ -23,17 +23,11 @@ pub struct Sc<T> {
 impl<T> Sc<T> {
     /// Allocate a `Sc` from a RcPool.
     #[inline]
-    pub fn new(t: T, pool: &RcPool<ScInner<T>>) -> Self {
+    pub fn new(t: T, pool: impl AsRef<RcPool<ScInner<T>>>) -> Self {
         Self {
-            slot: pool.alloc(ScInner::new(t)).for_mutation(),
-            pool: pool.clone(),
+            slot: pool.as_ref().alloc(ScInner::new(t)).for_mutation(),
+            pool: pool.as_ref().clone(),
         }
-    }
-
-    /// Associated function that returns a reference to the pool associated with this object.
-    #[inline]
-    pub fn pool(this: &Self) -> &RcPool<ScInner<T>> {
-        &this.pool
     }
 
     /// Associated function that returns the number of strong counters of this Sc.
@@ -265,6 +259,13 @@ impl<T> ScInner<T> {
     #[inline]
     pub(crate) fn dec_strong(&self) {
         self.strong_count.set(self.strong_count.get() - 1);
+    }
+}
+
+/// Get a reference to the pool this `Sc` was constructed from.
+impl<T> AsRef<RcPool<ScInner<T>>> for Sc<T> {
+    fn as_ref(&self) -> &RcPool<ScInner<T>> {
+        &self.pool
     }
 }
 

@@ -35,3 +35,9 @@ impl<T> Default for RcPool<T> {
         Self::new()
     }
 }
+
+impl<T> AsRef<RcPool<T>> for RcPool<T> {
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
