@@ -9,75 +9,64 @@ use std::ops::DerefMut;
 
 use crate::*;
 
-/// A Box for Pool allocated objects. This wraps Slots in a safe way. Dropping a Box will
-/// ensure that the destructor is called and the memory is given back to the pool.
-pub struct Box<'a, T> {
+/// A Box for pool allocated objects. This wraps Slots in a safe way. Dropping a Box will
+/// ensure that the destructor is called and the memory is given back to the pool. Uses a `RcPool<T>`
+/// to keep the backing pool alive as long any `Box<T>` is still in use.
+pub struct Box<T> {
     slot: Slot<T, Mutable>,
-    pool: &'a Pool<T>,
+    pool: RcPool<T>,
 }
 
-impl<T> Box<'_, T> {
+impl<T> Box<T> {
+    /// Allocate a Box from a RcPool.
+    #[inline]
+    pub fn new(t: T, pool: &RcPool<T>) -> Self {
+        Self {
+            slot: pool.alloc(t).for_mutation(),
+            pool: pool.clone(),
+        }
+    }
+
+    /// Associated function that returns a reference to the pool associated with this object.
+    ///
+    /// ```
+    /// use onsen::*;
+    ///
+    /// let pool: RcPool<&str> = RcPool::new();
+    /// let mybox = Box::new("Boxed", &pool);
+    ///
+    /// // allocate from the same pool
+    /// let otherbox = Box::new("Boxed", Box::pool(&mybox));
+    /// ```
+    #[inline]
+    pub fn pool(this: &Self) -> &RcPool<T> {
+        &this.pool
+    }
+
     /// Associated function that frees the memory of a Box without calling the destructor of
     /// its value.
     #[inline]
-    pub fn forget(mut b: Self) {
-        unsafe { b.pool.forget_by_ref(&mut b.slot) }
+    pub fn forget(mut this: Self) {
+        unsafe { this.pool.forget_by_ref(&mut this.slot) }
     }
 
     /// Associated function that frees the memory of a Box and returns the value it was holding.
     #[inline]
     #[must_use]
-    pub fn take(mut b: Self) -> T {
-        unsafe { b.pool.take_by_ref(&mut b.slot) }
+    pub fn take(mut this: Self) -> T {
+        unsafe { this.pool.take_by_ref(&mut this.slot) }
     }
 }
 
-impl<'a, T> Box<'a, T> {
-    /// Allocate a Box from a Pool. The allocated Box must not outlive the Pool it was created
-    /// from.
+impl<T: Default> Box<T> {
+    /// Allocate a default initialized Box from a Pool.
     #[inline]
-    pub fn new(t: T, pool: &'a Pool<T>) -> Self {
-        Self {
-            slot: pool.alloc(t).for_mutation(),
-            pool,
-        }
-    }
-}
-
-impl<'a, T: Default> Box<'a, T> {
-    /// Allocate a default initialized Box from a Pool. The allocated Box must not outlive the
-    /// Pool it was created from.
-    #[inline]
-    pub fn default(pool: &'a Pool<T>) -> Self {
+    pub fn default(pool: &RcPool<T>) -> Self {
         Box::new(T::default(), pool)
     }
 }
 
-impl<'a, T: Default> Pool<T> {
-    /// Allocate a default initialized Box from a Pool.
-    // TODO: remove before v1.0
-    #[inline]
-    #[deprecated(since = "0.10.0", note = "please use `Box::default()` instead")]
-    pub fn default_box(&'a self) -> Box<'a, T> {
-        #[allow(deprecated)]
-        self.alloc_box(T::default())
-    }
-}
-
-impl<'a, T> Pool<T> {
-    /// Allocate a Box from a Pool.
-    // TODO: remove before v1.0
-    #[inline]
-    #[deprecated(since = "0.10.0", note = "please use `Box::new()` instead")]
-    pub fn alloc_box(&'a self, t: T) -> Box<'a, T> {
-        Box {
-            slot: self.alloc(t).for_mutation(),
-            pool: self,
-        }
-    }
-}
-
-impl<T> Drop for Box<'_, T> {
+impl<T> Drop for Box<T> {
     #[inline]
     fn drop(&mut self) {
         unsafe {
@@ -86,7 +75,7 @@ impl<T> Drop for Box<'_, T> {
     }
 }
 
-impl<T> Deref for Box<'_, T> {
+impl<T> Deref for Box<T> {
     type Target = T;
 
     #[inline]
@@ -95,49 +84,49 @@ impl<T> Deref for Box<'_, T> {
     }
 }
 
-impl<T> DerefMut for Box<'_, T> {
+impl<T> DerefMut for Box<T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
         self.slot.get_mut()
     }
 }
 
-impl<T> Borrow<T> for Box<'_, T> {
+impl<T> Borrow<T> for Box<T> {
     #[inline]
     fn borrow(&self) -> &T {
         self.slot.get()
     }
 }
 
-impl<T> BorrowMut<T> for Box<'_, T> {
+impl<T> BorrowMut<T> for Box<T> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
         self.slot.get_mut()
     }
 }
 
-impl<T> AsRef<T> for Box<'_, T> {
+impl<T> AsRef<T> for Box<T> {
     #[inline]
     fn as_ref(&self) -> &T {
         self.slot.get()
     }
 }
 
-impl<T> AsMut<T> for Box<'_, T> {
+impl<T> AsMut<T> for Box<T> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
         self.slot.get_mut()
     }
 }
 
-impl<T: PartialEq> PartialEq for Box<'_, T> {
+impl<T: PartialEq> PartialEq for Box<T> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         PartialEq::eq(&**self, &**other)
     }
 }
 
-impl<T: PartialOrd> PartialOrd for Box<'_, T> {
+impl<T: PartialOrd> PartialOrd for Box<T> {
     #[inline]
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         PartialOrd::partial_cmp(&**self, &**other)
@@ -160,21 +149,21 @@ impl<T: PartialOrd> PartialOrd for Box<'_, T> {
     }
 }
 
-impl<T: Ord> Ord for Box<'_, T> {
+impl<T: Ord> Ord for Box<T> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         Ord::cmp(&**self, &**other)
     }
 }
-impl<T: Eq> Eq for Box<'_, T> {}
+impl<T: Eq> Eq for Box<T> {}
 
-impl<T: Hash> Hash for Box<'_, T> {
+impl<T: Hash> Hash for Box<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         (**self).hash(state);
     }
 }
 
-impl<T: Hasher> Hasher for Box<'_, T> {
+impl<T: Hasher> Hasher for Box<T> {
     fn finish(&self) -> u64 {
         (**self).finish()
     }
@@ -225,19 +214,19 @@ impl<T: Hasher> Hasher for Box<'_, T> {
     // }
 }
 
-impl<T: fmt::Display> fmt::Display for Box<'_, T> {
+impl<T: fmt::Display> fmt::Display for Box<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Box<'_, T> {
+impl<T: fmt::Debug> fmt::Debug for Box<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Debug::fmt(&**self, f)
     }
 }
 
-impl<T> fmt::Pointer for Box<'_, T> {
+impl<T> fmt::Pointer for Box<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr: *const T = &**self;
         fmt::Pointer::fmt(&ptr, f)
@@ -250,7 +239,7 @@ mod tests {
 
     #[test]
     fn smoke() {
-        let pool: Pool<&str> = Pool::new();
+        let pool: RcPool<&str> = RcPool::new();
         let _mybox = Box::new("Boxed", &pool);
     }
 }

@@ -227,7 +227,7 @@ impl DataHandle for BigBoxedData {
 }
 
 // data in a onsen box
-impl DataHandle for onsen::Box<'_, SmallData> {
+impl DataHandle for onsen::Box<SmallData> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -241,7 +241,7 @@ impl DataHandle for onsen::Box<'_, SmallData> {
     }
 }
 
-impl DataHandle for onsen::Box<'_, MedData> {
+impl DataHandle for onsen::Box<MedData> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -255,7 +255,7 @@ impl DataHandle for onsen::Box<'_, MedData> {
     }
 }
 
-impl DataHandle for onsen::Box<'_, BigData> {
+impl DataHandle for onsen::Box<BigData> {
     fn primary(&self) -> &u32 {
         &self.primary
     }
@@ -408,21 +408,21 @@ impl Worker<'_> for BigBoxWorker {
 
 // // Now implement the workers for onsen boxes
 pub struct SmallOnsenWorker {
-    pool: onsen::Pool<SmallData>,
+    pool: onsen::RcPool<SmallData>,
 }
 
 pub struct MedOnsenWorker {
-    pool: onsen::Pool<MedData>,
+    pool: onsen::RcPool<MedData>,
 }
 
 pub struct BigOnsenWorker {
-    pool: onsen::Pool<BigData>,
+    pool: onsen::RcPool<BigData>,
 }
 
 impl<'a> Worker<'a> for SmallOnsenWorker {
-    type Data = onsen::Box<'a, SmallData>;
+    type Data = onsen::Box<SmallData>;
     fn new() -> Self {
-        let pool = onsen::Pool::new();
+        let pool = onsen::RcPool::new();
         pool.with_min_entries(1000);
         SmallOnsenWorker { pool }
     }
@@ -433,9 +433,9 @@ impl<'a> Worker<'a> for SmallOnsenWorker {
 }
 
 impl<'a> Worker<'a> for MedOnsenWorker {
-    type Data = onsen::Box<'a, MedData>;
+    type Data = onsen::Box<MedData>;
     fn new() -> Self {
-        let pool = onsen::Pool::new();
+        let pool = onsen::RcPool::new();
         pool.with_min_entries(1000);
         MedOnsenWorker { pool }
     }
@@ -446,9 +446,9 @@ impl<'a> Worker<'a> for MedOnsenWorker {
 }
 
 impl<'a> Worker<'a> for BigOnsenWorker {
-    type Data = onsen::Box<'a, BigData>;
+    type Data = onsen::Box<BigData>;
     fn new() -> Self {
-        let pool = onsen::Pool::new();
+        let pool = onsen::RcPool::new();
         pool.with_min_entries(1000);
         BigOnsenWorker { pool }
     }
