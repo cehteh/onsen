@@ -2,13 +2,13 @@ use onsen::*;
 
 #[test]
 fn smoke() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let _mysc = Sc::new("Sc", &pool);
 }
 
 #[test]
 fn clone() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let mysc1 = Sc::new("Sc", &pool);
     let mysc2 = mysc1.clone();
     let mysc3 = Sc::clone(&mysc2);
@@ -21,7 +21,7 @@ fn clone() {
 
 #[test]
 fn deref_mut() {
-    let pool = Pool::new();
+    let pool = RcPool::new();
     let mut mysc = Sc::new("Sc", &pool);
     *mysc = "Changed";
     assert_eq!(*mysc, "Changed");
