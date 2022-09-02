@@ -22,6 +22,9 @@ use block::*;
 mod pool;
 pub use pool::*;
 
+mod rcpool;
+pub use rcpool::*;
+
 mod tpool;
 pub use tpool::*;
 
