@@ -12,6 +12,7 @@
 /// Maximum number of blocks in a Pool
 pub(crate) const NUM_BLOCKS: usize = 44;
 
+#[cfg(feature = "tbox")]
 #[doc(hidden)]
 pub use assoc_static::*;
 
