@@ -55,7 +55,8 @@ impl<T> Box<T> {
 impl<T: Default> Box<T> {
     /// Allocate a default initialized Box from a Pool.
     #[inline]
-    pub fn default(pool: &RcPool<T>) -> Self {
+    #[must_use]
+    pub fn default(pool: impl AsRef<RcPool<T>>) -> Self {
         Box::new(T::default(), pool)
     }
 }

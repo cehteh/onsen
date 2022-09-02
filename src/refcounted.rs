@@ -50,12 +50,6 @@ impl<T> Rc<T> {
         }
     }
 
-    /// Associated function that returns a reference to the pool associated with this object.
-    #[inline]
-    pub fn pool(this: &Self) -> &RcPool<RcInner<T>> {
-        &this.pool
-    }
-
     /// Associated function that returns the number of strong counters of this Rc.
     #[must_use]
     pub fn strong_count(this: &Self) -> usize {
@@ -72,7 +66,7 @@ impl<T> Rc<T> {
 impl<T: Default> Rc<T> {
     /// Allocate a default initialized Rc from a RcPool.
     #[inline]
-    pub fn default(pool: &RcPool<RcInner<T>>) -> Self {
+    pub fn default(pool: impl AsRef<RcPool<RcInner<T>>>) -> Self {
         Rc::new(T::default(), pool)
     }
 }

@@ -40,7 +40,7 @@ impl<T> Sc<T> {
 impl<T: Default> Sc<T> {
     /// Allocate a default initialized `Sc` from a `RcPool`.
     #[inline]
-    pub fn default(pool: &RcPool<ScInner<T>>) -> Self {
+    pub fn default(pool: impl AsRef<RcPool<ScInner<T>>>) -> Self {
         Sc::new(T::default(), pool)
     }
 }
