@@ -1,6 +1,6 @@
 #![cfg(feature = "stpool")]
 use std::cell::RefCell;
-use threadcell::ThreadCell;
+use threadcell::{Guard as STPoolGuard, ThreadCell};
 
 use crate::*;
 
@@ -66,6 +66,21 @@ impl<T> STPool<T> {
     pub fn release(&self) -> Result<(), PoolOwnershipError> {
         if self.0.try_release() {
             Ok(())
+        } else {
+            Err(PoolOwnershipError)
+        }
+    }
+
+    /// Acquire the ownership of the `STPool` with a `STPoolGuard`. The pool will stay
+    /// acquired until this guard becomes dropped.  Returns `Ok(STPoolGuard<..>` when the pool
+    /// was successful acquired and `Err(PoolOwnershipError)` when the current thread did not
+    /// own the pool. The returned guard itself is opaque, it just needs to stay around as
+    /// long as needed.
+    #[must_use = "the returned guard holds the threads ownership of the pool"]
+    pub fn acquire_guard(&self) -> Result<STPoolGuard<RefCell<PoolInner<T>>>, PoolOwnershipError> {
+        let guard = STPoolGuard::new(&self.0);
+        if guard.inner().try_acquire() {
+            Ok(guard)
         } else {
             Err(PoolOwnershipError)
         }

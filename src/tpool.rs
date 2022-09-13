@@ -27,6 +27,12 @@ impl<T> TPool<T> {
 
     /// Mock the `STPool` API's to make `TPool` a drop in replacement.
     #[inline(always)]
+    pub fn acquire_guard(&self) -> Result<(), PoolOwnershipError> {
+        Ok(())
+    }
+
+    /// Mock the `STPool` API's to make `TPool` a drop in replacement.
+    #[inline(always)]
     pub fn release(&self) -> Result<(), PoolOwnershipError> {
         Ok(())
     }

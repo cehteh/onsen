@@ -51,3 +51,16 @@ fn eq() {
     }
     TBox::<&'static str, Test>::pool().release().unwrap();
 }
+
+#[test]
+#[serial]
+fn guard() {
+    let _guard = TBox::<&'static str, Test>::pool().acquire_guard().unwrap();
+    {
+        let box1 = TBox::new("Boxed", Test);
+        let box2 = TBox::new("Boxed", Test);
+        let box3 = TBox::new("Boxed again", Test);
+        assert_eq!(box1, box2);
+        assert_ne!(box1, box3);
+    }
+}
