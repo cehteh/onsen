@@ -48,9 +48,9 @@ impl<T> STPool<T> {
     }
 
     /// Acquire the ownership of the `STPool` by the current thread.  Must be called before
-    /// any operation on the pool is done. The pool will stay acquired until it is released.
-    /// Returns *true* when the pool was successful acquired and *false* when the pool
-    /// is owned by another thread.
+    /// any operation on the pool is done. The pool will stay acquired until it is
+    /// released. Returns `Ok(())` when the pool was successful acquired and
+    /// `Err(PoolOwnershipError)` when the current thread could not acquire the pool.
     pub fn acquire(&self) -> Result<(), PoolOwnershipError> {
         if self.0.try_acquire() {
             Ok(())
@@ -61,8 +61,8 @@ impl<T> STPool<T> {
 
     /// Releases the threads ownership of the `STPool` so that some other thread can use it.
     /// When a thread exits it should release the pool, otherwise other threads can't pick it
-    /// up.  Returns *true* when the pool was successful released and *false* when the current
-    /// thread does not own the pool.
+    /// up.  Returns `Ok(())` when the pool was successful released and
+    /// `Err(PoolOwnershipError)` when the current thread did not own the pool.
     pub fn release(&self) -> Result<(), PoolOwnershipError> {
         if self.0.try_release() {
             Ok(())
