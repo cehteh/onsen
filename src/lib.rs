@@ -19,6 +19,7 @@ pub use assoc_static::*;
 mod block;
 use block::*;
 
+mod macros;
 mod pool;
 pub use pool::*;
 
