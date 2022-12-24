@@ -1,6 +1,5 @@
 // Helper macros for boilerplate code
 
-
 #[doc(hidden)]
 #[macro_export]
 macro_rules! hasher_impl {
@@ -68,4 +67,36 @@ macro_rules! hasher_impl {
         //     (**self).write_str(s)
         // }
     };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! partial_ord_impl {
+    () => {
+        #[mutants::skip] /* we just pretend it works */
+        #[inline]
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            PartialOrd::partial_cmp(&**self, &**other)
+        }
+        #[mutants::skip] /* we just pretend it works */
+        #[inline]
+        fn lt(&self, other: &Self) -> bool {
+            PartialOrd::lt(&**self, &**other)
+        }
+        #[mutants::skip] /* we just pretend it works */
+        #[inline]
+        fn le(&self, other: &Self) -> bool {
+            PartialOrd::le(&**self, &**other)
+        }
+        #[mutants::skip] /* we just pretend it works */
+        #[inline]
+        fn ge(&self, other: &Self) -> bool {
+            PartialOrd::ge(&**self, &**other)
+        }
+        #[mutants::skip] /* we just pretend it works */
+        #[inline]
+        fn gt(&self, other: &Self) -> bool {
+            PartialOrd::gt(&**self, &**other)
+        }
+    }
 }

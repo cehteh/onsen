@@ -247,26 +247,7 @@ where
     T: AssocStatic<TRcPool<T>, TAG> + 'static,
     TAG: 'static,
 {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        PartialOrd::partial_cmp(&**self, &**other)
-    }
-    #[inline]
-    fn lt(&self, other: &Self) -> bool {
-        PartialOrd::lt(&**self, &**other)
-    }
-    #[inline]
-    fn le(&self, other: &Self) -> bool {
-        PartialOrd::le(&**self, &**other)
-    }
-    #[inline]
-    fn ge(&self, other: &Self) -> bool {
-        PartialOrd::ge(&**self, &**other)
-    }
-    #[inline]
-    fn gt(&self, other: &Self) -> bool {
-        PartialOrd::gt(&**self, &**other)
-    }
+    partial_ord_impl! {}
 }
 
 impl<T: Ord, TAG> Ord for TRc<T, TAG>

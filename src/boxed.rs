@@ -122,26 +122,7 @@ impl<T: PartialEq> PartialEq for Box<T> {
 }
 
 impl<T: PartialOrd> PartialOrd for Box<T> {
-    #[inline]
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        PartialOrd::partial_cmp(&**self, &**other)
-    }
-    #[inline]
-    fn lt(&self, other: &Self) -> bool {
-        PartialOrd::lt(&**self, &**other)
-    }
-    #[inline]
-    fn le(&self, other: &Self) -> bool {
-        PartialOrd::le(&**self, &**other)
-    }
-    #[inline]
-    fn ge(&self, other: &Self) -> bool {
-        PartialOrd::ge(&**self, &**other)
-    }
-    #[inline]
-    fn gt(&self, other: &Self) -> bool {
-        PartialOrd::gt(&**self, &**other)
-    }
+    partial_ord_impl! {}
 }
 
 impl<T: Ord> Ord for Box<T> {
