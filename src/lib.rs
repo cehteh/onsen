@@ -1,6 +1,6 @@
 #![doc = include_str!("../README.md")]
 // uncomment for discovering new lints:
-// #![deny(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
+//#![deny(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]
 #![warn(clippy::cargo_common_metadata)]
 #![warn(clippy::doc_markdown)]
 #![warn(clippy::missing_panics_doc)]
@@ -19,46 +19,34 @@ pub use assoc_static::*;
 mod block;
 use block::*;
 
+mod boxed;
+mod entry;
 mod macros;
 mod pool;
-pub use pool::*;
-
 mod rcpool;
-pub use rcpool::*;
-
+mod refcounted;
+mod slot;
+mod stpool;
+mod strongcounted;
+mod tboxed;
 mod tpool;
+mod trefcounted;
+mod tstrongcounted;
+
+pub use boxed::*;
+pub use entry::*;
+pub use pool::*;
+pub use rcpool::*;
+pub use refcounted::*;
+pub use slot::*;
+pub use strongcounted::*;
 pub use tpool::*;
 
-mod stpool;
 #[cfg(feature = "stpool")]
 pub use stpool::*;
 
-mod slot;
-pub use slot::*;
-
-mod entry;
-pub use entry::*;
-
-mod boxed;
-pub use boxed::*;
-
-mod refcounted;
-pub use refcounted::*;
-
-mod strongcounted;
-pub use strongcounted::*;
-
-mod tboxed;
 #[cfg(feature = "tbox")]
-pub use tboxed::*;
-
-mod trefcounted;
-#[cfg(feature = "tbox")]
-pub use trefcounted::*;
-
-mod tstrongcounted;
-#[cfg(feature = "tbox")]
-pub use tstrongcounted::*;
+pub use {tboxed::*, trefcounted::*, tstrongcounted::*};
 
 /// The error returned when a `STPool` can not be acquired or released.
 #[derive(Debug, Copy, Clone)]
