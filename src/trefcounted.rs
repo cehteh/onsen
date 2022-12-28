@@ -42,14 +42,14 @@ macro_rules! define_trc_pool {
     };
 }
 
-/// A reference counted smart pointer for Pool allocated objects. This wraps Slots in a safe
-/// way. A `TRc` need a Pool holding `RcInner<T>`, not `T`.
+/// A reference counted smart pointer for Pool allocated objects. This wraps `SimpleBox` in a
+/// safe way. A `TRc` need a Pool holding `RcInner<T>`, not `T`.
 pub struct TRc<T, TAG>
 where
     T: AssocStatic<TRcPool<T>, TAG> + 'static,
     TAG: 'static,
 {
-    slot: Slot<RcInner<T>, Mutable>,
+    slot: SimpleBox<RcInner<T>, Mutable>,
     tag: PhantomData<TAG>,
 }
 
@@ -323,7 +323,7 @@ where
     T: AssocStatic<TRcPool<T>, TAG> + 'static,
     TAG: 'static,
 {
-    slot: Slot<RcInner<T>, Mutable>,
+    slot: SimpleBox<RcInner<T>, Mutable>,
     tag: PhantomData<TAG>,
 }
 

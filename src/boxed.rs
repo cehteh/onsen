@@ -9,11 +9,11 @@ use std::ops::DerefMut;
 
 use crate::*;
 
-/// A Box for pool allocated objects. This wraps Slots in a safe way. Dropping a Box will
+/// A Box for pool allocated objects. This wraps `SimpleBox` in a safe way. Dropping a Box will
 /// ensure that the destructor is called and the memory is given back to the pool. Uses a `RcPool<T>`
 /// to keep the backing pool alive as long any `Box<T>` is still in use.
 pub struct Box<T> {
-    slot: Slot<T, Mutable>,
+    slot: SimpleBox<T, Mutable>,
     pool: RcPool<T>,
 }
 

@@ -11,10 +11,10 @@ use std::ops::DerefMut;
 
 use crate::*;
 
-/// A reference counted smart pointer for pool allocated objects. This wraps Slots in a safe
-/// way. Rc's need a `RcPool<RcInner<T>>` as pool.
+/// A reference counted smart pointer for pool allocated objects. This wraps `SimpleBox` in a
+/// safe way. Rc's need a `RcPool<RcInner<T>>` as pool.
 pub struct Rc<T> {
-    slot: Slot<RcInner<T>, Mutable>,
+    slot: SimpleBox<RcInner<T>, Mutable>,
     pool: RcPool<RcInner<T>>,
 }
 
@@ -201,7 +201,7 @@ impl<T> fmt::Pointer for Rc<T> {
 
 /// `Weak` references do not keep the object alive.
 pub struct Weak<T> {
-    slot: Slot<RcInner<T>, Mutable>,
+    slot: SimpleBox<RcInner<T>, Mutable>,
     pool: RcPool<RcInner<T>>,
 }
 

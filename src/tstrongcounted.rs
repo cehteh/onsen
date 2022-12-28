@@ -42,14 +42,14 @@ macro_rules! define_tsc_pool {
     };
 }
 
-/// A reference counted smart pointer for Pool allocated objects. This wraps Slots in a safe
-/// way. A `TSc` need a Pool holding `ScInner<T>`, not `T`.
+/// A reference counted smart pointer for Pool allocated objects. This wraps `SimpleBox` in a
+/// safe way. A `TSc` need a Pool holding `ScInner<T>`, not `T`.
 pub struct TSc<T, TAG>
 where
     T: AssocStatic<TScPool<T>, TAG> + 'static,
     TAG: 'static,
 {
-    slot: Slot<ScInner<T>, Mutable>,
+    slot: SimpleBox<ScInner<T>, Mutable>,
     tag: PhantomData<TAG>,
 }
 

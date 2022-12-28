@@ -43,7 +43,7 @@ macro_rules! define_tbox_pool {
     };
 }
 
-/// A `TBox` for Pool allocated objects. This wraps Slots in a safe way. Dropping a `TBox`
+/// A `TBox` for Pool allocated objects. This wraps `SimpleBox` in a safe way. Dropping a `TBox`
 /// will ensure that the destructor is called and the memory is given back to the pool. `TBoxes`
 /// use a TAG to discriminate. This can be any user defined type, preferably a ZST made only
 /// for this purpose. See the `assoc_static` documentation for details.
@@ -52,7 +52,7 @@ where
     T: AssocStatic<TBoxPool<T>, TAG> + 'static,
     TAG: 'static,
 {
-    slot: Slot<T, Mutable>,
+    slot: SimpleBox<T, Mutable>,
     tag: PhantomData<TAG>,
 }
 

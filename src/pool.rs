@@ -94,24 +94,24 @@ where
     /// returns a slot handle. Freeing the object should be done manually with `pool.free()`,
     /// `pool::forget()` or `pool.take()`. The user must take care that the slot/references
     /// obtained from it are not used after free as this may panic or return another object.
-    #[must_use = "Slot is required for freeing memory, dropping it will leak"]
+    #[must_use = "SimpleBox is required for freeing memory, dropping it will leak"]
     #[inline]
-    fn alloc(&self, t: T) -> Slot<T, Initialized> {
+    fn alloc(&self, t: T) -> SimpleBox<T, Initialized> {
         let mut entry = self.alloc_entry();
         unsafe {
             *entry.as_mut() = Entry {
                 data: ManuallyDrop::new(t),
             };
         }
-        Slot::new(entry)
+        SimpleBox::new(entry)
     }
 
     /// Non consuming variant of `pool.free()`, allows freeing slots that are part of other
-    /// structures while keeping Slot non-Copy. The slot must not be used after this.
+    /// structures while keeping `SimpleBox` non-Copy. The slot must not be used after this.
     /// See `slot.free()` for details.
     #[allow(clippy::missing_safety_doc)]
     #[allow(clippy::missing_panics_doc)]
-    unsafe fn free_by_ref<S: DropPolicy>(&self, slot: &mut Slot<T, S>) {
+    unsafe fn free_by_ref<S: DropPolicy>(&self, slot: &mut SimpleBox<T, S>) {
         self.with_lock(|pool| {
             S::manually_drop(&mut slot.0.as_mut().data);
             pool.free_entry(slot.0.as_ptr());
@@ -119,11 +119,11 @@ where
     }
 
     /// Non consuming variant of `pool.take()`, allows taking slots that are part of other
-    /// structures while keeping Slot non-Copy.  The slot must not be used after this.  See
+    /// structures while keeping `SimpleBox` non-Copy.  The slot must not be used after this.  See
     /// `slot.take()` for details.
     #[allow(clippy::missing_safety_doc)]
     #[allow(clippy::missing_panics_doc)]
-    unsafe fn take_by_ref<S: CanTakeValue>(&self, slot: &mut Slot<T, S>) -> T {
+    unsafe fn take_by_ref<S: CanTakeValue>(&self, slot: &mut SimpleBox<T, S>) -> T {
         self.with_lock(|pool| {
             let ret = ManuallyDrop::take(&mut slot.0.as_mut().data);
             pool.free_entry(slot.0.as_ptr());
@@ -131,14 +131,15 @@ where
         })
     }
 
-    /// Allocates a new slot from the pool, keeps the content uninitialized returns a Slot
-    /// handle to it. Freeing the object should be done manually with `pool.free()` or
-    /// `pool.forget()`. The user must take care that the provided handle or references
-    /// obtained from is are used after free as this may panic or return another object.
-    #[must_use = "Slot is required for freeing memory, dropping it will leak"]
+    /// Allocates a new slot from the pool, keeps the content uninitialized returns a
+    /// `SimpleBox` handle to it. Freeing the object should be done manually with
+    /// `pool.free()` or `pool.forget()`. The user must take care that the provided handle or
+    /// references obtained from is are used after free as this may panic or return another
+    /// object.
+    #[must_use = "SimpleBox is required for freeing memory, dropping it will leak"]
     #[inline]
-    fn alloc_uninit(&self) -> Slot<T, Uninitialized> {
-        Slot::new(self.alloc_entry())
+    fn alloc_uninit(&self) -> SimpleBox<T, Uninitialized> {
+        SimpleBox::new(self.alloc_entry())
     }
 
     /// Frees `slot` by calling its destructor when it contains an initialized object,
@@ -147,14 +148,14 @@ where
     ///
     /// # Safety
     ///
-    /// Slots must not be freed while references pointing to it.
+    /// A `SimpleBox` must not be freed while references pointing to it.
     ///
     /// # Panics
     ///
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    unsafe fn free<S: DropPolicy>(&self, mut slot: Slot<T, S>) {
+    unsafe fn free<S: DropPolicy>(&self, mut slot: SimpleBox<T, S>) {
         self.free_by_ref(&mut slot);
     }
 
@@ -162,23 +163,23 @@ where
     ///
     /// # Safety
     ///
-    /// Slots must not be forgotten while references pointing to it.
+    /// A `SimpleBox` must not be forgotten while references pointing to it.
     ///
     /// # Panics
     ///
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    unsafe fn forget<S: Policy>(&self, mut slot: Slot<T, S>) {
+    unsafe fn forget<S: Policy>(&self, mut slot: SimpleBox<T, S>) {
         self.forget_by_ref(&mut slot);
     }
 
     /// Non consuming variant of `pool.forget()`, allows forgetting slots that are part of
-    /// other structures while keeping Slot non-Copy.  The slot must not be used after this.
-    /// See `slot.forget()` for details.
+    /// other structures while keeping `SimpleBox` non-Copy.  The slot must not be used after
+    /// this.  See `slot.forget()` for details.
     #[allow(clippy::missing_safety_doc)]
     #[allow(clippy::missing_panics_doc)]
-    unsafe fn forget_by_ref<S: Policy>(&self, slot: &mut Slot<T, S>) {
+    unsafe fn forget_by_ref<S: Policy>(&self, slot: &mut SimpleBox<T, S>) {
         self.with_lock(|pool| {
             pool.free_entry(slot.0.as_ptr());
         });
@@ -190,7 +191,7 @@ where
     ///
     /// # Safety
     ///
-    /// Slots must not be taken while references pointing to it.
+    /// A `SimpleBox` must not be taken while references pointing to it.
     ///
     /// # Panics
     ///
@@ -199,7 +200,7 @@ where
     ///  * The slot is already free
     ///  * The slot is invalid, not from this pool (debug only).
     #[inline]
-    unsafe fn take<S: CanTakeValue>(&self, mut slot: Slot<T, S>) -> T {
+    unsafe fn take<S: CanTakeValue>(&self, mut slot: SimpleBox<T, S>) -> T {
         self.take_by_ref(&mut slot)
     }
 }
@@ -285,7 +286,7 @@ impl<T> PoolInner<T> {
     ///  * The object must be already destructed (if possible)
     ///  * No references to the entry must exist
     ///
-    /// This is internal, only called from Slot
+    /// This is internal, only called from `SimpleBox`
     unsafe fn free_entry(&mut self, entry: *mut Entry<T>) {
         if let Some(freelist_last) = self.freelist {
             self.blocks[0..self.blocks_allocated]

@@ -6,20 +6,21 @@ use crate::*;
 
 /// Handle to allocated memory. This wraps an internal pointer to the allocation and provides
 /// an API for accessing the content. To free memory slots must eventually be given back to
-/// the pool they belong to by `pool.free()`, `pool.forget()` or `pool.take()`. Slots do not
-/// track which Pool they belong to. It is the responsibility of the user to give them back to
-/// the correct pool and ensure that they do not outlive the pool they belong to. In debug
-/// mode it asserted that a slot belongs to the pool when it is given back. Safe abstractions
-/// should track the slots pool.
+/// the pool they belong to by `pool.free()`, `pool.forget()` or `pool.take()`. `SimpleBox` do
+/// not track which Pool they belong to. It is the responsibility of the user to give them
+/// back to the correct pool and ensure that they do not outlive the pool they belong to. In
+/// debug mode it asserted that a slot belongs to the pool when it is given back. Safe
+/// abstractions should track the slots pool.
 ///
 /// Access is guarded by a typestate Policy tag.
+// TODO: make slots self contained smart pointers no reference get/mut anymore
 #[repr(transparent)]
-pub struct Slot<T, S: Policy>(pub(crate) NonNull<Entry<T>>, PhantomData<T>, PhantomData<S>);
+pub struct SimpleBox<T, S: Policy>(pub(crate) NonNull<Entry<T>>, PhantomData<T>, PhantomData<S>);
 
-unsafe impl<T: Send, S: Policy> Send for Slot<T, S> {}
-unsafe impl<T: Sync, S: Policy> Sync for Slot<T, S> {}
+unsafe impl<T: Send, S: Policy> Send for SimpleBox<T, S> {}
+unsafe impl<T: Sync, S: Policy> Sync for SimpleBox<T, S> {}
 
-impl<T, S: Policy> Slot<T, S> {
+impl<T, S: Policy> SimpleBox<T, S> {
     // Private ctor
     pub(crate) fn new(from: NonNull<Entry<T>>) -> Self {
         Self(from, PhantomData, PhantomData)
@@ -41,10 +42,10 @@ pub trait DropPolicy: Policy {
 
 /// Permits getting a immutable reference to the value.
 pub trait CanGetReference: Policy {}
-/// Permits destroying the Slot by taking the Value out of it.
+/// Permits destroying the `SimpleBox` by taking the Value out of it.
 pub trait CanTakeValue: Policy {}
 
-/// Holds uninitialized memory.
+/// Tags a slot holding uninitialized memory.
 pub enum Uninitialized {}
 impl Policy for Uninitialized {}
 impl DropPolicy for Uninitialized {
@@ -53,13 +54,15 @@ impl DropPolicy for Uninitialized {
     fn manually_drop<T>(_data: &mut std::mem::ManuallyDrop<T>) {}
 }
 
-/// Holds an initialized value.
+// TODO: burned state for a slot, can not be accessed anymore, only freed
+/// Tags a slot holding an initialized value.
 pub enum Initialized {}
 impl Policy for Initialized {}
 impl DropPolicy for Initialized {}
 impl CanGetReference for Initialized {}
 impl CanTakeValue for Initialized {}
 
+// TODO: DOC
 /// Initialized, mutable references are permitted.
 pub enum Mutable {}
 impl Policy for Mutable {}
@@ -67,6 +70,7 @@ impl DropPolicy for Mutable {}
 impl CanGetReference for Mutable {}
 impl CanTakeValue for Mutable {}
 
+// TODO: DOC
 /// Initialized, pinned references are permitted.
 pub enum Pinnable {}
 impl Policy for Pinnable {}
@@ -74,6 +78,7 @@ impl DropPolicy for Pinnable {}
 impl CanGetReference for Pinnable {}
 impl CanTakeValue for Pinnable {}
 
+// TODO: DOC
 /// Initialized, NaN tagged identifier API.
 pub enum NaNTagging {}
 impl Policy for NaNTagging {}
@@ -85,52 +90,52 @@ impl CanTakeValue for NaNTagging {}
 /// only allocated yet but do not contain an initialized value. Similar to `MaybeUninit` one
 /// can obtain a reference to an `Entry` to this slot and then `write()` a value to it. When
 /// done so the slot is transformed into a initialized slot with `assume_init()`.
-impl<T> Slot<T, Uninitialized> {
+impl<T> SimpleBox<T, Uninitialized> {
     /// Get a reference to the uninitialized memory at slot.
     #[inline]
     pub fn get_uninit(&mut self) -> &mut Entry<T> {
         unsafe { self.0.as_mut() }
     }
 
-    /// Tags the object at slot as initialized. Return an initialized Slot.
+    /// Tags the object at slot as initialized. Return an initialized `SimpleBox`.
     ///
     /// # Safety
     ///
     /// The object must be fully initialized when calling this.
     #[inline]
     #[must_use]
-    pub unsafe fn assume_init(self) -> Slot<T, Initialized> {
-        Slot::<T, Initialized>(self.0, PhantomData, PhantomData)
+    pub unsafe fn assume_init(self) -> SimpleBox<T, Initialized> {
+        SimpleBox::<T, Initialized>(self.0, PhantomData, PhantomData)
     }
 }
 
 /// Initialized slots hold a valid value. When mutation is required it has to be
 /// translated into on of the more specific policies with the following methods.
-impl<T> Slot<T, Initialized> {
-    /// Transforms an initialized Slot into one that can be mutated by references
+impl<T> SimpleBox<T, Initialized> {
+    /// Transforms an initialized `SimpleBox` into one that can be mutated by references
     #[inline]
     #[must_use]
-    pub fn for_mutation(self) -> Slot<T, Mutable> {
-        Slot(self.0, PhantomData, PhantomData)
+    pub fn for_mutation(self) -> SimpleBox<T, Mutable> {
+        SimpleBox(self.0, PhantomData, PhantomData)
     }
 
-    /// Transforms an initialized Slot into one that can be mutated by pinned references
+    /// Transforms an initialized `SimpleBox` into one that can be mutated by pinned references
     #[inline]
     #[must_use]
-    pub fn for_pinning(self) -> Slot<T, Pinnable> {
-        Slot(self.0, PhantomData, PhantomData)
+    pub fn for_pinning(self) -> SimpleBox<T, Pinnable> {
+        SimpleBox(self.0, PhantomData, PhantomData)
     }
 
-    /// Transforms an initialized Slot into one that can be use by nantagging facilities
+    /// Transforms an initialized `SimpleBox` into one that can be use by nantagging facilities
     #[inline]
     #[must_use]
-    pub fn for_nantagging(self) -> Slot<T, NaNTagging> {
-        Slot(self.0, PhantomData, PhantomData)
+    pub fn for_nantagging(self) -> SimpleBox<T, NaNTagging> {
+        SimpleBox(self.0, PhantomData, PhantomData)
     }
 }
 
 /// Allows one to obtain a mutable reference.
-impl<T> Slot<T, Mutable> {
+impl<T> SimpleBox<T, Mutable> {
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
     #[inline]
     pub fn get_mut(&mut self) -> &mut T {
@@ -141,17 +146,17 @@ impl<T> Slot<T, Mutable> {
     ///
     /// # Safety
     ///
-    /// Slots must be only once given back to the pool which as well invalidates any
+    /// A `SimpleBox` must be only once given back to the pool which as well invalidates any
     /// copies. See how Rc uses this for the replication.
     #[inline]
     #[must_use]
     pub unsafe fn copy(&self) -> Self {
-        Slot(self.0, PhantomData, PhantomData)
+        SimpleBox(self.0, PhantomData, PhantomData)
     }
 }
 
 /// Allows one to obtain a mutable pinned reference with `get_pin()`.
-impl<T> Slot<T, Pinnable> {
+impl<T> SimpleBox<T, Pinnable> {
     /// Get a pinned reference to the object in slot, where slot must be an allocated
     /// slot. Since all Pool allocations are at stable slotesses it is straightforward to
     /// give Pin guarantees for them. One only need to make sure not to violate the Pin
@@ -163,7 +168,7 @@ impl<T> Slot<T, Pinnable> {
 
 /// For slots that are initialized it is always possible to get a immutable reference to the
 /// value.
-impl<T, S: CanGetReference> Slot<T, S> {
+impl<T, S: CanGetReference> SimpleBox<T, S> {
     /// Get a immutable reference to the object in slot, where slot must hold an initialized
     /// object.
     #[inline]
@@ -175,7 +180,7 @@ impl<T, S: CanGetReference> Slot<T, S> {
 
 /// Implements the NaN-Tagging API. This is u64 that can be OR'ed with a mask to form a quiet
 /// NaN.
-impl<T> Slot<T, NaNTagging> {
+impl<T> SimpleBox<T, NaNTagging> {
     /// Zero cost conversion to a u64 identifier of the slot. This identifier is guaranteed
     /// to represent a 48bit wide 8-aligned pointer. Thus highest 16 bits and the last 3 bits
     /// can be used for storing auxiliary information (NaN tagging).
@@ -190,7 +195,7 @@ impl<T> Slot<T, NaNTagging> {
         self.0.as_ptr() as u64
     }
 
-    /// Converts a usize identifier obtained by `as_u64()` back into a Slot.
+    /// Converts a usize identifier obtained by `as_u64()` back into a `SimpleBox`.
     ///
     /// # Safety
     ///
@@ -206,8 +211,8 @@ impl<T> Slot<T, NaNTagging> {
         )
     }
 
-    /// Converts a usize identifier obtained by `as_usize()` back into a Slot. Before doing so
-    /// it applies a mask to strip away any auxiliary bits.
+    /// Converts a usize identifier obtained by `as_usize()` back into a `SimpleBox`. Before
+    /// doing so it applies a mask to strip away any auxiliary bits.
     ///
     /// # Safety
     ///

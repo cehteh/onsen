@@ -11,12 +11,12 @@ use std::ops::DerefMut;
 
 use crate::*;
 
-/// A reference counted smart pointer for pool allocated objects. This wraps Slots in a safe
-/// way. Sc's need a `RcPool<ScInner<T>>` as backing pool.  Sc's do not have a Weak
-/// counterpart. When no Weak functionality is required this can give a space advantage
-/// for small objects and be slightly faster.
+/// A reference counted smart pointer for pool allocated objects. This wraps `SimpleBox` in a
+/// safe way. Sc's need a `RcPool<ScInner<T>>` as backing pool.  Sc's do not have a Weak
+/// counterpart. When no Weak functionality is required this can give a space advantage for
+/// small objects and be slightly faster.
 pub struct Sc<T> {
-    slot: Slot<ScInner<T>, Mutable>,
+    slot: SimpleBox<ScInner<T>, Mutable>,
     pool: RcPool<ScInner<T>>,
 }
 
