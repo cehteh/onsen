@@ -15,15 +15,21 @@ use crate::*;
 /// Access is guarded by a typestate Policy tag.
 // TODO: make slots self contained smart pointers no reference get/mut anymore
 #[repr(transparent)]
-pub struct SimpleBox<T, S: Policy>(pub(crate) NonNull<Entry<T>>, PhantomData<T>, PhantomData<S>);
+#[derive(Debug)]
+pub struct SimpleBox<'a, T, S: Policy>(
+    pub(crate) NonNull<Entry<T>>,
+    PhantomData<T>,
+    PhantomData<S>,
+    PhantomData<&'a Pool<T>>,
+);
 
-unsafe impl<T: Send, S: Policy> Send for SimpleBox<T, S> {}
-unsafe impl<T: Sync, S: Policy> Sync for SimpleBox<T, S> {}
+unsafe impl<T: Send, S: Policy> Send for SimpleBox<'_, T, S> {}
+unsafe impl<T: Sync, S: Policy> Sync for SimpleBox<'_, T, S> {}
 
-impl<T, S: Policy> SimpleBox<T, S> {
+impl<'a, T, S: Policy> SimpleBox<'a, T, S> {
     // Private ctor
-    pub(crate) fn new(from: NonNull<Entry<T>>) -> Self {
-        Self(from, PhantomData, PhantomData)
+    pub(crate) fn new(from: NonNull<Entry<T>>, _pool: &Pool<T>) -> Self {
+        Self(from, PhantomData, PhantomData, PhantomData)
     }
 }
 
@@ -56,6 +62,7 @@ impl DropPolicy for Uninitialized {
 
 // TODO: burned state for a slot, can not be accessed anymore, only freed
 /// Tags a slot holding an initialized value.
+#[derive(Debug)]
 pub enum Initialized {}
 impl Policy for Initialized {}
 impl DropPolicy for Initialized {}
@@ -64,6 +71,7 @@ impl CanTakeValue for Initialized {}
 
 // TODO: DOC
 /// Initialized, mutable references are permitted.
+#[derive(Debug)]
 pub enum Mutable {}
 impl Policy for Mutable {}
 impl DropPolicy for Mutable {}
@@ -72,6 +80,7 @@ impl CanTakeValue for Mutable {}
 
 // TODO: DOC
 /// Initialized, pinned references are permitted.
+#[derive(Debug)]
 pub enum Pinnable {}
 impl Policy for Pinnable {}
 impl DropPolicy for Pinnable {}
@@ -80,6 +89,7 @@ impl CanTakeValue for Pinnable {}
 
 // TODO: DOC
 /// Initialized, NaN tagged identifier API.
+#[derive(Debug)]
 pub enum NaNTagging {}
 impl Policy for NaNTagging {}
 impl DropPolicy for NaNTagging {}
@@ -90,7 +100,7 @@ impl CanTakeValue for NaNTagging {}
 /// only allocated yet but do not contain an initialized value. Similar to `MaybeUninit` one
 /// can obtain a reference to an `Entry` to this slot and then `write()` a value to it. When
 /// done so the slot is transformed into a initialized slot with `assume_init()`.
-impl<T> SimpleBox<T, Uninitialized> {
+impl<'a, T> SimpleBox<'a, T, Uninitialized> {
     /// Get a reference to the uninitialized memory at slot.
     #[inline]
     pub fn get_uninit(&mut self) -> &mut Entry<T> {
@@ -104,38 +114,38 @@ impl<T> SimpleBox<T, Uninitialized> {
     /// The object must be fully initialized when calling this.
     #[inline]
     #[must_use]
-    pub unsafe fn assume_init(self) -> SimpleBox<T, Initialized> {
-        SimpleBox::<T, Initialized>(self.0, PhantomData, PhantomData)
+    pub unsafe fn assume_init(self) -> SimpleBox<'a, T, Initialized> {
+        SimpleBox::<T, Initialized>(self.0, PhantomData, PhantomData, PhantomData)
     }
 }
 
 /// Initialized slots hold a valid value. When mutation is required it has to be
 /// translated into on of the more specific policies with the following methods.
-impl<T> SimpleBox<T, Initialized> {
+impl<'a, T> SimpleBox<'a, T, Initialized> {
     /// Transforms an initialized `SimpleBox` into one that can be mutated by references
     #[inline]
     #[must_use]
-    pub fn for_mutation(self) -> SimpleBox<T, Mutable> {
-        SimpleBox(self.0, PhantomData, PhantomData)
+    pub fn for_mutation(self) -> SimpleBox<'a, T, Mutable> {
+        SimpleBox(self.0, PhantomData, PhantomData, PhantomData)
     }
 
     /// Transforms an initialized `SimpleBox` into one that can be mutated by pinned references
     #[inline]
     #[must_use]
-    pub fn for_pinning(self) -> SimpleBox<T, Pinnable> {
-        SimpleBox(self.0, PhantomData, PhantomData)
+    pub fn for_pinning(self) -> SimpleBox<'a, T, Pinnable> {
+        SimpleBox(self.0, PhantomData, PhantomData, PhantomData)
     }
 
     /// Transforms an initialized `SimpleBox` into one that can be use by nantagging facilities
     #[inline]
     #[must_use]
-    pub fn for_nantagging(self) -> SimpleBox<T, NaNTagging> {
-        SimpleBox(self.0, PhantomData, PhantomData)
+    pub fn for_nantagging(self) -> SimpleBox<'a, T, NaNTagging> {
+        SimpleBox(self.0, PhantomData, PhantomData, PhantomData)
     }
 }
 
 /// Allows one to obtain a mutable reference.
-impl<T> SimpleBox<T, Mutable> {
+impl<T> SimpleBox<'_, T, Mutable> {
     /// Get a mutable reference to the object in slot, where slot must be an allocated slot.
     #[inline]
     pub fn get_mut(&mut self) -> &mut T {
@@ -151,12 +161,12 @@ impl<T> SimpleBox<T, Mutable> {
     #[inline]
     #[must_use]
     pub unsafe fn copy(&self) -> Self {
-        SimpleBox(self.0, PhantomData, PhantomData)
+        SimpleBox(self.0, PhantomData, PhantomData, PhantomData)
     }
 }
 
 /// Allows one to obtain a mutable pinned reference with `get_pin()`.
-impl<T> SimpleBox<T, Pinnable> {
+impl<T> SimpleBox<'_, T, Pinnable> {
     /// Get a pinned reference to the object in slot, where slot must be an allocated
     /// slot. Since all Pool allocations are at stable slotesses it is straightforward to
     /// give Pin guarantees for them. One only need to make sure not to violate the Pin
@@ -168,7 +178,7 @@ impl<T> SimpleBox<T, Pinnable> {
 
 /// For slots that are initialized it is always possible to get a immutable reference to the
 /// value.
-impl<T, S: CanGetReference> SimpleBox<T, S> {
+impl<T, S: CanGetReference> SimpleBox<'_, T, S> {
     /// Get a immutable reference to the object in slot, where slot must hold an initialized
     /// object.
     #[inline]
@@ -180,7 +190,7 @@ impl<T, S: CanGetReference> SimpleBox<T, S> {
 
 /// Implements the NaN-Tagging API. This is u64 that can be OR'ed with a mask to form a quiet
 /// NaN.
-impl<T> SimpleBox<T, NaNTagging> {
+impl<T> SimpleBox<'_, T, NaNTagging> {
     /// Zero cost conversion to a u64 identifier of the slot. This identifier is guaranteed
     /// to represent a 48bit wide 8-aligned pointer. Thus highest 16 bits and the last 3 bits
     /// can be used for storing auxiliary information (NaN tagging).
@@ -208,6 +218,7 @@ impl<T> SimpleBox<T, NaNTagging> {
             NonNull::new(id as *mut Entry<T>).expect("Invalid identifier"),
             PhantomData,
             PhantomData,
+            PhantomData,
         )
     }
 
@@ -223,6 +234,7 @@ impl<T> SimpleBox<T, NaNTagging> {
     pub unsafe fn from_u64_masked(id: u64) -> Self {
         Self(
             NonNull::new((id & !0xffff000000000007) as *mut Entry<T>).expect("Invalid identifier"),
+            PhantomData,
             PhantomData,
             PhantomData,
         )

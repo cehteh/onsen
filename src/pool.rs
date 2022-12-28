@@ -17,6 +17,12 @@ impl<T> Pool<T> {
     }
 }
 
+impl<T> PrivPoolApi<T> for Pool<T> {
+    fn pool(&self) -> &Pool<T> {
+        self
+    }
+}
+
 impl<T> PoolApi<T> for Pool<T> {}
 
 impl<T> PoolLock<T> for &Pool<T> {
@@ -44,6 +50,26 @@ pub trait PoolLock<T> {
     fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R;
 }
 
+
+
+/// internal API
+#[doc(hidden)]
+pub trait PrivPoolApi<T>
+where
+    for<'a> &'a Self: PoolLock<T>,
+    Self: Sized,
+{
+    /// Return a reference to the actual pool
+    fn pool(&self) -> &Pool<T>;
+
+    /// Allocates a new entry, either from the freelist or by extending the pool.
+    /// Returns an uninitialized Entry pointer.
+    fn alloc_entry(&self) -> NonNull<Entry<T>> {
+        self.with_lock(|pool| pool.alloc_entry())
+    }
+}
+
+
 /// The API for a Pool. This trait takes care for the locking the interior mutable pools and
 /// default implements all its methods. It is not intended to be implemented by a user.
 ///
@@ -58,6 +84,7 @@ pub trait PoolLock<T> {
 /// This trait must be in scope to be used.
 pub trait PoolApi<T>
 where
+    Self: PrivPoolApi<T>,
     for<'a> &'a Self: PoolLock<T>,
     Self: Sized,
 {
@@ -84,12 +111,6 @@ where
         std::mem::forget(self);
     }
 
-    /// Allocates a new entry, either from the freelist or by extending the pool.
-    /// Returns Entry pointer tagged as UNINITIALIZED.
-    fn alloc_entry(&self) -> NonNull<Entry<T>> {
-        self.with_lock(|pool| pool.alloc_entry())
-    }
-
     /// Allocates a new slot from the pool, initializes it with the supplied object and
     /// returns a slot handle. Freeing the object should be done manually with `pool.free()`,
     /// `pool::forget()` or `pool.take()`. The user must take care that the slot/references
@@ -103,7 +124,7 @@ where
                 data: ManuallyDrop::new(t),
             };
         }
-        SimpleBox::new(entry)
+        SimpleBox::new(entry, self.pool())
     }
 
     /// Non consuming variant of `pool.free()`, allows freeing slots that are part of other
@@ -139,7 +160,7 @@ where
     #[must_use = "SimpleBox is required for freeing memory, dropping it will leak"]
     #[inline]
     fn alloc_uninit(&self) -> SimpleBox<T, Uninitialized> {
-        SimpleBox::new(self.alloc_entry())
+        SimpleBox::new(self.alloc_entry(), self.pool())
     }
 
     /// Frees `slot` by calling its destructor when it contains an initialized object,
