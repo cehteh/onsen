@@ -1,3 +1,4 @@
+#![allow(rustdoc::bare_urls)]
 #![doc = include_str!("../README.md")]
 // uncomment for discovering new lints:
 //#![deny(clippy::all, clippy::pedantic, clippy::nursery, clippy::cargo)]

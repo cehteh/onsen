@@ -98,5 +98,5 @@ macro_rules! partial_ord_impl {
         fn gt(&self, other: &Self) -> bool {
             PartialOrd::gt(&**self, &**other)
         }
-    }
+    };
 }
