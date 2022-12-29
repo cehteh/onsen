@@ -50,8 +50,6 @@ pub trait PoolLock<T> {
     fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R;
 }
 
-
-
 /// internal API
 #[doc(hidden)]
 pub trait PrivPoolApi<T>
@@ -68,7 +66,6 @@ where
         self.with_lock(|pool| pool.alloc_entry())
     }
 }
-
 
 /// The API for a Pool. This trait takes care for the locking the interior mutable pools and
 /// default implements all its methods. It is not intended to be implemented by a user.
@@ -244,7 +241,7 @@ impl<T> PoolInner<T> {
             // blocks: [(); NUM_BLOCKS].map(|_| None),  // doesn't work in constfn :/
 
             // TODO:  https://github.com/rust-lang/rust/issues/76001
-            // which reduces it down to just `[const { None }; SIZE]`
+            // which reduces it down to:  blocks: [const { None }; NUM_BLOCKS],
             blocks: [
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,

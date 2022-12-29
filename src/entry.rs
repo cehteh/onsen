@@ -11,6 +11,7 @@ pub(crate) struct FreelistNode<T> {
 
 /// Entries within a Pool. This can either hold user data (potentially uninitialized) or the
 /// freelist node.
+#[doc(hidden)]
 #[repr(align(8))]
 pub union Entry<T> {
     pub(crate) data: ManuallyDrop<T>,
@@ -98,20 +99,22 @@ impl<T> Entry<T> {
 
     #[inline(always)]
     unsafe fn next(this: *mut Self) -> *mut Self {
-        (*(*this).freelist_node).next
+        (*this).freelist_node.next
     }
 
     #[inline(always)]
     unsafe fn prev(this: *mut Self) -> *mut Self {
-        (*(*this).freelist_node).prev
+        (*this).freelist_node.prev
     }
 
     #[inline(always)]
+    #[allow(clippy::explicit_auto_deref)]
     unsafe fn set_next(this: *mut Self, that: *mut Self) {
         (*(*this).freelist_node).next = that;
     }
 
     #[inline(always)]
+    #[allow(clippy::explicit_auto_deref)]
     unsafe fn set_prev(this: *mut Self, that: *mut Self) {
         (*(*this).freelist_node).prev = that;
     }
