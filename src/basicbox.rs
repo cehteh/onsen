@@ -1,3 +1,4 @@
+use std::fmt;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
 
@@ -99,6 +100,14 @@ impl<T> DerefMut for BasicBox<'_, T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: Always contains a valid object when this function is callable, see above
         unsafe { &mut self.as_entry_mut().data }
+    }
+}
+
+impl<T> fmt::Debug for BasicBox<'_, T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_tuple("BasicBox")
+            .field(&self.0.as_ref().map(|v| *v as *const Entry<T>))
+            .finish()
     }
 }
 
