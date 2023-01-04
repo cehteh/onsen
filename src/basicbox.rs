@@ -1,8 +1,5 @@
-use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
-//use std::pin::Pin;
 use std::ops::{Deref, DerefMut};
-use std::ptr::NonNull;
 
 use crate::*;
 
@@ -24,13 +21,11 @@ use crate::*;
 /// half of the cost on alloc/dealloc pair (compared to real work you do with the data this
 /// should be very cheap nevertheless).
 #[repr(transparent)]
-#[derive(Debug)]
 pub struct BasicBox<'a, T>(
     // This Option is always `Some()` in live objects, only `dealloc*()`, `forget()` and
     // `take()` which consume the box sets it to `None` to notify the `Drop` implementation that the value is
     // already destructed.
-    Option<NonNull<Entry<T>>>,
-    PhantomData<&'a Pool<T>>,
+    Option<&'a mut Entry<T>>,
 );
 
 unsafe impl<T: Send> Send for BasicBox<'_, T> {}
@@ -38,8 +33,8 @@ unsafe impl<T: Sync> Sync for BasicBox<'_, T> {}
 
 impl<'a, T> BasicBox<'a, T> {
     // Private ctor
-    pub(crate) fn new(from: NonNull<Entry<T>>, _pool: &'a Pool<T>) -> Self {
-        Self(Some(from), PhantomData)
+    pub(crate) fn new(from: &'a mut Entry<T>) -> Self {
+        Self(Some(from))
     }
 }
 
@@ -49,32 +44,38 @@ impl<'a, T> BasicBox<'a, T> {
         assert!(self.0.is_some());
     }
 
-    pub(crate) unsafe fn as_entry_nonnull(&self) -> NonNull<Entry<T>> {
+    pub(crate) unsafe fn as_entry_mut(&mut self) -> &mut Entry<T> {
         debug_assert!(self.0.is_some());
         // Safety: Option is always `Some` when calling this, see above
-        self.0.unwrap_unchecked()
+        self.0.as_mut().unwrap_unchecked()
+    }
+
+    pub(crate) unsafe fn as_entry(&self) -> &Entry<T> {
+        debug_assert!(self.0.is_some());
+        // Safety: Option is always `Some` when calling this, see above
+        self.0.as_ref().unwrap_unchecked()
     }
 
     pub(crate) unsafe fn take_entry(&mut self) -> &mut Entry<T> {
         debug_assert!(self.0.is_some());
-        self.0.take().unwrap_unchecked().as_mut()
+        self.0.take().unwrap_unchecked()
     }
 
     pub(crate) unsafe fn manually_drop(&mut self) -> &mut Entry<T> {
-        ManuallyDrop::drop(&mut self.as_entry_nonnull().as_mut().data);
-        self.0.take().unwrap_unchecked().as_mut()
+        ManuallyDrop::drop(&mut self.as_entry_mut().data);
+        self.0.take().unwrap_unchecked()
     }
 
     pub(crate) unsafe fn take(&mut self) -> T {
-        ManuallyDrop::take(&mut self.as_entry_nonnull().as_mut().data)
+        ManuallyDrop::take(&mut self.as_entry_mut().data)
     }
 
     pub(crate) unsafe fn as_mut(&mut self) -> &mut T {
-        &mut self.as_entry_nonnull().as_mut().data
+        &mut self.as_entry_mut().data
     }
 
     pub(crate) unsafe fn as_ref(&self) -> &T {
-        &self.as_entry_nonnull().as_ref().data
+        &self.as_entry().data
     }
 }
 

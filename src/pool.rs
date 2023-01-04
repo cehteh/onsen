@@ -117,11 +117,11 @@ where
     fn alloc(&self, t: T) -> BasicBox<T> {
         let mut entry = self.alloc_entry();
         unsafe {
-            *entry.as_mut() = Entry {
+            entry.as_ptr().write(Entry {
                 data: ManuallyDrop::new(t),
-            };
+            });
+            BasicBox::new(entry.as_mut())
         }
-        BasicBox::new(entry, self.pool())
     }
 
     /// Frees `BasicBox` by calling its destructor. Puts the given memory back into the
