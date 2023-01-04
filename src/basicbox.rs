@@ -67,15 +67,8 @@ impl<'a, T> BasicBox<'a, T> {
     }
 
     pub(crate) unsafe fn take(&mut self) -> T {
+        debug_assert!(self.0.is_some());
         ManuallyDrop::take(&mut self.as_entry_mut().data)
-    }
-
-    pub(crate) unsafe fn as_mut(&mut self) -> &mut T {
-        &mut self.as_entry_mut().data
-    }
-
-    pub(crate) unsafe fn as_ref(&self) -> &T {
-        &self.as_entry().data
     }
 }
 
@@ -97,7 +90,7 @@ impl<T> Deref for BasicBox<'_, T> {
     #[inline]
     fn deref(&self) -> &Self::Target {
         // Safety: Always contains a valid object when this function is callable, see above
-        unsafe { self.as_ref() }
+        unsafe { &self.as_entry().data }
     }
 }
 
@@ -105,7 +98,7 @@ impl<T> DerefMut for BasicBox<'_, T> {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
         // Safety: Always contains a valid object when this function is callable, see above
-        unsafe { self.as_mut() }
+        unsafe { &mut self.as_entry_mut().data }
     }
 }
 

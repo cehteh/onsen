@@ -5,7 +5,10 @@ use std::ptr::NonNull;
 
 use crate::*;
 
-/// A single threaded, interior mutable memory Pool holding objects of type T.
+/// A single threaded, interior mutable memory Pool holding objects of type T.  Onsen Pools
+/// obtain memory blocks from the global allocator. As long the Pool exists these blocks are
+/// not given back to the allocator even when all entries are free. Only destruction of the
+/// pool frees the associated blocks.
 pub struct Pool<T: Sized>(RefCell<PoolInner<T>>);
 
 impl<T> Pool<T> {
@@ -14,6 +17,18 @@ impl<T> Pool<T> {
     #[must_use]
     pub const fn new() -> Self {
         Self(RefCell::new(PoolInner::new()))
+    }
+}
+
+impl<T> Default for Pool<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> fmt::Debug for Pool<T> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        f.debug_tuple("Pool").field(&self.0).finish()
     }
 }
 
@@ -32,18 +47,6 @@ impl<T> PoolLock<T> for &Pool<T> {
     }
 }
 
-impl<T> Default for Pool<T> {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl<T> fmt::Debug for Pool<T> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        f.debug_tuple("Pool").field(&self.0).finish()
-    }
-}
-
 /// Interior mutability of a pool.
 #[doc(hidden)]
 pub trait PoolLock<T> {
@@ -57,7 +60,7 @@ where
     for<'a> &'a Self: PoolLock<T>,
     Self: Sized,
 {
-    /// Return a reference to the actual pool
+    /// Return a downcasted reference to the actual pool
     fn pool(&self) -> &Pool<T>;
 
     /// Allocates a new entry, either from the freelist or by extending the pool.
@@ -70,14 +73,6 @@ where
 /// The API for a Pool. This trait takes care for the locking the interior mutable pools and
 /// default implements all its methods. It is not intended to be implemented by a user.
 ///
-/// The pool can not track how many references to a slot are active. This makes all `free()`,
-/// `forget()` and `take()` unsafe. Thus they have to be carefully protected by RAII guards or
-/// other means. Another approach is to use the *address* for all addressing and convert to
-/// references only on demand and drop the reference as soon as possible.
-///
-/// This API is low-level and frequently unsafe is intended to be used to build
-/// safe high level abstractions.
-///
 /// This trait must be in scope to be used.
 pub trait PoolApi<T>
 where
@@ -85,17 +80,11 @@ where
     for<'a> &'a Self: PoolLock<T>,
     Self: Sized,
 {
-    /// Configures the minimum of entries the first block will hold. Must be called before the
-    /// first allocation is made. Can be used when the number of entries that will be used is
-    /// roughly guessable and or the size of entries is small.  Setting this improves cache
-    /// locality.  Since blocks are allocated with exponentially growing size this should be
-    /// still small enough, approx 1/4 of the average number of entries to be expected. The
+    /// Configures the minimum number of entries the first block will hold. Must be called
+    /// before the first allocation is made otherwise it will have no effect. Since blocks are
+    /// allocated with exponentially growing size this should be reasonable small. The
     /// implementation will generously round this up to the next power of two. When not set it
     /// defaults to 64 entries.
-    ///
-    /// # Panics
-    ///
-    /// When called after the pool made its first allocation.
     fn with_min_entries(&self, min_entries: usize) {
         self.with_lock(|pool| pool.min_entries = min_entries);
     }
@@ -108,11 +97,13 @@ where
         std::mem::forget(self);
     }
 
-    /// Allocates a new slot from the pool, initializes it with the supplied object and
-    /// returns a slot handle. Freeing the object should be done manually with `pool.free()`,
-    /// `pool::forget()` or `pool.take()`. The user must take care that the slot/references
-    /// obtained from it are not used after free as this may panic or return another object.
-    #[must_use = "SimpleBox is required for freeing memory, dropping it will leak"]
+    // PLANNED: try_alloc() with graceful backing off allocation and error handling
+
+    /// Allocates a new `BasicBox` from this pool, initializes it with the supplied object.
+    /// Freeing the object should be done manually with `pool.dealloc()`, `pool.forget()` or
+    /// `pool.take()`. When a `BasicBox` is not deallocated, taken or forgotten as above then
+    /// its it will leak until the Pool becomes dropped, this happens when panicking or might
+    /// be intentional when the whole Pool becomes dropped at a later time.
     #[inline]
     fn alloc(&self, t: T) -> BasicBox<T> {
         let mut entry = self.alloc_entry();
@@ -144,7 +135,7 @@ where
     /// freelist. This function does not check if the object belongs to the pool. This makes
     /// it slightly faster but unsafe for that reason. Nevertheless many uses of `BasicBox`
     /// can guarantee this invariant because there is only one pool in use or the associated
-    /// pool is stored along.
+    /// pool is stored along in a safe abstraction that keeps the `BasicBox`.
     ///
     /// # Safety
     ///
@@ -202,7 +193,7 @@ impl<T> PoolInner<T> {
             // blocks: [(); NUM_BLOCKS].map(|_| None),  // doesn't work in constfn :/
 
             // TODO:  https://github.com/rust-lang/rust/issues/76001
-            // which reduces it down to:  blocks: [const { None }; NUM_BLOCKS],
+            // becomes:  blocks: [const { None }; NUM_BLOCKS],
             blocks: [
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,
                 None, None, None, None, None, None, None, None, None, None, None, None, None, None,
