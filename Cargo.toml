@@ -33,14 +33,21 @@ mutants = "0.0.3"
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"]}
 serial_test = "0.10.0"
+env_logger = "0.10.0"
+libc = "0.2.139"
 
 [[bench]]
-name = "baseline"
+name = "basicbox"
 harness = false
 
-[[bench]]
-name = "simulated_work"
-harness = false
+#
+# [[bench]]
+# name = "baseline"
+# harness = false
+# 
+# [[bench]]
+# name = "simulated_work"
+# harness = false
 
 [badges]
 maintenance = { status = "actively-developed" }

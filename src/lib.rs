@@ -21,12 +21,12 @@ mod block;
 use block::*;
 
 //mod boxed;
+mod basicbox;
 mod entry;
 mod macros;
 mod pool;
 // mod rcpool;
 // mod refcounted;
-mod simplebox;
 // mod stpool;
 // mod strongcounted;
 // mod tboxed;
@@ -39,7 +39,7 @@ pub use entry::*;
 pub use pool::*;
 // pub use rcpool::*;
 // pub use refcounted::*;
-pub use simplebox::*;
+pub use basicbox::*;
 // pub use strongcounted::*;
 // pub use tpool::*;
 

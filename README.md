@@ -4,64 +4,40 @@ Onsen provides hot Pools for objects.  In most cases allocation from such a Pool
 offers better locality than the standard allocator. For small to medium sized objects the
 performance improvement is around 20% or better. For large objects the gains become smaller as
 caching effects even out. These improvements cover operating on objects because of locality,
-not just faster allocation speeds.
+not just faster allocation speeds. Onsen is made for to be used from single threads. This
+means that in multithreaded applications it works best when each thread can keep its own pool
+of objects. It is extremely fast when one can use alloc only or alloc mostly temporary Pools
+which where memory becomes deallocated all at once when the Pool becomes destructed.
 
 
 # Details
 
 Onsen pools allocate blocks with exponentially growing sizes. Allocations are served from
 these blocks. Freed entries are kept in a double linked cyclic freelist. This freelist is kept
-in weakly ordered and the entry point always point close to where the last action happend to
+in weak ordered and the entry point always point close to where the last action happend to
 keep the caches hot.
+
+
+# BasicBox
+
+Allocating from a pool returns `BasicBox` handles. These are lightweight abstractions to memory
+allocations, they do not keep a relation to the pool they are allocated from. The rationale for
+this design is to make them usable in a VM that uses NaN tagging. Thus deallocating a
+`BasicBox` should be explicitly done with `pool.dealloc(simplebox)`.
+
+When this explicit deallocation is not possible (for example when panicking), `BasicBox` still
+becomes properly destructed but its memory leaks within its pool unil that pool becomes
+dropped.
 
 
 # Box, Rc and Sc
 
 Onsen comes with its own `Box` and `Rc`/`Weak` implementations that wrap the underlying
-`RcPool` in a safe way. A `Sc` reference counted box without weak reference support is
+`BasicBox` in a safe way. A `Sc` reference counted box without weak reference support is
 available as well and provides an advantage for small objects where the weak count would add
 some weight.
 
-For each of these a variant that uses static global pools is avaialble as well.
-
-# Slots
-
-Allocating from a pool returns `Slot` handles. These are lightweight abstractions to memory
-addresses, they do not keep a relation to the pool they are allocated from. The rationale for
-this design is to make them usable in a VM that uses NaN tagging.
-
-
-## Slot Policies
-
-Slots are guarded by typestate policies which prevent some wrong use at compile time.
-
-
-## Slots and Safety
-
-Because of this slots need to be handled with care and certain contracts need to be
-enforced. The library provides some help to ensure correctness. Few things can not be asserted
-and are guarded by unsafe functions. Higher level API's (Such as `Box`, `Rc` and `Sc` above) can
-easily enforce these in a safe way.
-
-  1. Slots must be given back to the pool they originate from.
-  2. Slots must not outlive the pool they are allocated from.
-     * When a Pool gets dropped while it still has live allocations it will panic in debug
-       mode.
-     * When a pool with live allocations gets dropped in release mode it leaks its memory.
-       This is unfortunate but ensures memory safety of the program.
-     * There is `pool.leak()` which drops a pool while leaking its memory blocks. This can be
-       used when one will never try to free memory obtained from that Pool.
-     * This applies to u64 NaN tags as well.
-  3. Slots must be freed only once.
-     * This is always asserted. But the assertion may fail when the slot got allocated again.
-     * Slots are not 'Copy' thus one can not safely free a slot twice but there is an explicit
-       'copy()' function used by the reference count implementations and the NaN tagging
-       facilities can copy an 'u64' and try to attempt to free this multiple times. These are
-       'unsafe' functions becasue of that.
-  4. References obtained from slots must not outlive the freeing of the `Slot`.
-     * This is the main reason that makes the `Slot` freeing functions unsafe. There is no way
-       for a pool to know if references are still in use. One should provide or use a safe
-       abstraction around references to enforce this.
+For each of these a variant that uses static global pools is available as well.
 
 
 # Features
@@ -85,11 +61,19 @@ multithreaded `TPool`.  Additional features are gated with feature flags.
 
 ## Performance Characteristics
 
+ * Allocation from a Pool is much faster, 2-3 times faster as the standard allocator.
+
+ * Freeing is about the same speed or slightly slower as the standard allocator.
+
+ * Overall alloc/process/free operations are significantly faster than using the standard
+   allocator. This is especially true when the processing part can benefit from the cache
+   locatity where hot objects stay close together.
+
  * Onsen pools are optimized for cache locality and with that to some extend for
    singlethreaded use. It is best to have one pool per type per thread.
 
  * The `TPool` adds a mutex to be used in multithreaded cases but its performance is
-   significantly less than the singlethreaded pools but in many cases still better than the
+   considerably less than the singlethreaded pools but in many cases still better than the
    std allocator. One will still benefit from locality though.
 
  * The `STPool` is singlethreaded but can be cooperatively passed between threads, its
@@ -106,7 +90,7 @@ much from other programs. On Linux you may do something like:
 
 ```shell,ignore
 sudo renice -15 $$
-sudo cpupower -c 1 frequenc-set -f 2.8GHz
+sudo cpupower -c 1 frequency-set -f 2.8GHz
 taskset 2 cargo bench
 ```
 
