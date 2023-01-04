@@ -181,7 +181,6 @@ pub struct PoolInner<T: Sized> {
     blocks: [Option<Block<T>>; NUM_BLOCKS],
     blocks_allocated: usize,
     min_entries: usize,
-    in_use: usize,
     freelist: Option<NonNull<Entry<T>>>,
 }
 
@@ -202,7 +201,6 @@ impl<T> PoolInner<T> {
             ],
             blocks_allocated: 0,
             min_entries: 64,
-            in_use: 0,
             freelist: None,
         }
     }
@@ -245,7 +243,6 @@ impl<T> PoolInner<T> {
             }
         };
 
-        self.in_use += 1;
         entry
     }
 
@@ -273,7 +270,6 @@ impl<T> PoolInner<T> {
         } else {
             Entry::init_free_node(entry);
         }
-        self.in_use -= 1;
         self.freelist = Some(NonNull::new_unchecked(entry));
     }
 
@@ -290,7 +286,6 @@ impl<T> PoolInner<T> {
         } else {
             Entry::init_free_node(entry);
         }
-        self.in_use -= 1;
         self.freelist = Some(entry.into());
     }
 
@@ -318,7 +313,6 @@ impl<T> fmt::Debug for PoolInner<T> {
             .field("blocks", &self.blocks)
             .field("blocks_allocated", &self.blocks_allocated)
             .field("min_entries", &self.min_entries)
-            .field("in_use", &self.in_use)
             .field("freelist.len()", &self.freelist_len())
             .finish()
     }
