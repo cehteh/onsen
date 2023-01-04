@@ -119,15 +119,3 @@ impl<T> Entry<T> {
         (*(*this).freelist_node).prev = that;
     }
 }
-
-// Should be valid for C, but lets test this.
-#[test]
-fn entry_layout() {
-    let e = Entry {
-        data: ManuallyDrop::new(String::from("Hello")),
-    };
-    assert_eq!(
-        (&e) as *const Entry<String> as usize,
-        (&e) as *const Entry<String> as usize
-    );
-}

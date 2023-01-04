@@ -32,11 +32,7 @@ impl<T> fmt::Debug for Pool<T> {
     }
 }
 
-impl<T> PrivPoolApi<T> for Pool<T> {
-    fn pool(&self) -> &Pool<T> {
-        self
-    }
-}
+impl<T> PrivPoolApi<T> for Pool<T> {}
 
 impl<T> PoolApi<T> for Pool<T> {}
 
@@ -60,9 +56,6 @@ where
     for<'a> &'a Self: PoolLock<T>,
     Self: Sized,
 {
-    /// Return a downcasted reference to the actual pool
-    fn pool(&self) -> &Pool<T>;
-
     /// Allocates a new entry, either from the freelist or by extending the pool.
     /// Returns an uninitialized Entry pointer.
     fn alloc_entry(&self) -> NonNull<Entry<T>> {
@@ -325,22 +318,5 @@ mod pool_tests {
     #[test]
     fn smoke() {
         let _pool: Pool<String> = Pool::new();
-    }
-}
-
-#[cfg(test)]
-mod tpool_tests {
-    use crate::*;
-
-    #[test]
-    fn smoke() {
-        let _pool: TPool<String> = TPool::new();
-    }
-
-    #[test]
-    fn leak() {
-        let pool: TPool<u64> = TPool::new();
-        let _ = pool.alloc(1234);
-        pool.leak();
     }
 }

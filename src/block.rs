@@ -8,16 +8,9 @@ use crate::*;
 // makes sense.
 const MAX_ALIGN: usize = 1073741824usize;
 
-/// The low level memory blocks and bitmaps.
-///
-/// PANICS: One must not drop blocks while they are still in use. In debug mode this
-/// panics. In release the memory will be leaked to maintain memory safety.
-/// This emergency leaking is only there to prevent UB, it is not the intended
-/// use!
-///
-/// In case fast application shutdown is important one can explicitly leak the memory.
+/// The low level memory blocks.
 pub(crate) struct Block<T: Sized> {
-    /// Pointer to an `[*mut Entry<T>, capacity]` with the first `len_used` entries in use.
+    /// Pointer to an `[Entry<T>, capacity]` with the first `len_used` entries in use.
     memory: NonNull<Entry<T>>,
     len_used: usize,
     capacity: usize,
@@ -72,7 +65,6 @@ impl<T: Sized> Block<T> {
     }
 
     /// returns true when a blocks capacity is exhausted
-    #[inline]
     pub(crate) fn is_full(&self) -> bool {
         self.len_used == self.capacity
     }
