@@ -1,165 +1,97 @@
 use std::fmt;
-use std::mem::ManuallyDrop;
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 use crate::*;
 
-/// Handle to an allocated object. This wraps the pointer to the allocation and provides an
-/// API for accessing the content. To free memory slots should eventually be given back to the
-/// pool they belong to by `pool.dealloc()`, `pool.forget()` or `pool.take()`. `BasicBox` do
-/// not track which Pool they belong to. It is the responsibility of the user to give them
-/// back to the correct pool. In debug mode it asserted that a slot belongs to the pool when
-/// it is given back. Safe abstractions should track the associated pool.
+/// A fragile Box implementation which may leak memory within a Pool.  To free the memory of a
+/// `BasicBox` it should eventually be given back to the pool it belongs to by
+/// `BasicBox::drop()`, `BasicBox::forget()` or `BasicBox::take()`. A `BasicBox` do not track
+/// which Pool they belong to. It is the responsibility of the user to give them back to the
+/// correct pool. Unlike `UnsafeBox` a `BasicBox` has a lifetime bound to its pool, thus it
+/// can not outlive the pool and no UB can happen when it becomes dropped.
 ///
 /// When a `BasicBox` goes out of scope while it is not explicitly deallocated its contents
-/// will be properly destructed but the associated memory will leak within the `Pool` from
-/// where it was allocated. This happens especially on panics when raw `BasicBox` and not
-/// higher level abstractions are used, thus one should make sure that this can't be the case
-/// or happens rarely.
+/// will be properly destructed while the associated memory will leak within the `Pool` from
+/// where it was allocated. This happens especially when panicking drops unsafe boxes.
 ///
 /// Sometimes can be used as advantage when using temporary pools where the memory reclamation
-/// will happen when the `Pool` becomes destroyed. Benchmarks show that deallocation is approx
-/// half of the cost on alloc/dealloc pair (compared to real work you do with the data this
-/// should be very cheap nevertheless).
+/// will happen when the `Pool` becomes destroyed.
 #[repr(transparent)]
-pub struct BasicBox<'a, T>(
-    // This Option is always `Some()` in live objects, only `dealloc*()`, `forget()` and
-    // `take()` which consume the box sets it to `None` to notify the `Drop` implementation that the value is
-    // already destructed.
-    Option<&'a mut Entry<T>>,
-);
+pub struct BasicBox<'a, T>(UnsafeBox<T>, PhantomData<&'a Pool<T>>);
 
 unsafe impl<T: Send> Send for BasicBox<'_, T> {}
 unsafe impl<T: Sync> Sync for BasicBox<'_, T> {}
 
 impl<'a, T> BasicBox<'a, T> {
-    // Private ctor
-    pub(crate) fn new(from: &'a mut Entry<T>) -> Self {
-        Self(Some(from))
+    /// Creates a new `BasicBox` from within the given pool.
+    pub fn new(from: T, pool: &'a Pool<T>) -> Self {
+        Self(pool.alloc(from), PhantomData)
+    }
+
+    /// Deallocates a `BasicBox`. A `BasicBox` that is not deallocated when it goes out of
+    /// scope will leak within its pool.
+    ///
+    /// # Panics
+    ///
+    /// This `BasicBox` was not allocated from the given pool.
+    pub fn drop(this: Self, pool: &'a Pool<T>) {
+        pool.dealloc(this.0);
+    }
+
+    /// Deallocates a `BasicBox`. A `BasicBox` that is not deallocated when it goes out of
+    /// scope will leak within its pool.
+    ///
+    /// # Safety
+    ///
+    /// This `BasicBox` must be allocated from the given pool.
+    pub unsafe fn drop_unchecked(this: Self, pool: &'a Pool<T>) {
+        pool.dealloc_unchecked(this.0);
+    }
+
+    /// Deallocates a `BasicBox` and returns its contained value.
+    ///
+    /// # Panics
+    ///
+    /// This `BasicBox` was not allocated from the given pool.
+    pub fn take(this: Self, pool: &'a Pool<T>) -> T {
+        pool.take(this.0)
+    }
+
+    /// Deallocates a `BasicBox` without calling its destructor. A `BasicBox` that is not
+    /// deallocated when it goes out of scope will leak within its pool.
+    ///
+    /// # Panics
+    ///
+    /// This `BasicBox` was not allocated from the given pool.
+    pub fn forget(this: Self, pool: &'a Pool<T>) {
+        pool.forget(this.0);
     }
 }
 
-impl<'a, T> BasicBox<'a, T> {
-    #[track_caller]
-    pub(crate) fn assert_initialized(&self) {
-        assert!(self.0.is_some());
-    }
-
-    pub(crate) unsafe fn as_entry_mut(&mut self) -> &mut Entry<T> {
-        debug_assert!(self.0.is_some());
-        // Safety: Option is always `Some` when calling this, see above
-        self.0.as_mut().unwrap_unchecked()
-    }
-
-    pub(crate) unsafe fn as_entry(&self) -> &Entry<T> {
-        debug_assert!(self.0.is_some());
-        // Safety: Option is always `Some` when calling this, see above
-        self.0.as_ref().unwrap_unchecked()
-    }
-
-    pub(crate) unsafe fn take_entry(&mut self) -> &mut Entry<T> {
-        debug_assert!(self.0.is_some());
-        self.0.take().unwrap_unchecked()
-    }
-
-    pub(crate) unsafe fn manually_drop(&mut self) -> &mut Entry<T> {
-        ManuallyDrop::drop(&mut self.as_entry_mut().data);
-        self.0.take().unwrap_unchecked()
-    }
-
-    pub(crate) unsafe fn take(&mut self) -> T {
-        debug_assert!(self.0.is_some());
-        ManuallyDrop::take(&mut self.as_entry_mut().data)
-    }
-}
-
-impl<'a, T> Drop for BasicBox<'a, T> {
-    #[inline]
-    fn drop(&mut self) {
-        if self.0.is_some() {
-            // Safety: we just checked 'is_some()'
-            unsafe {
-                self.manually_drop();
-            }
-        }
+impl<'a, T: Default> BasicBox<'a, T> {
+    /// Creates a new default initialized `BasicBox` from within the given pool.
+    pub fn default(pool: &'a Pool<T>) -> Self {
+        Self(pool.alloc(T::default()), PhantomData)
     }
 }
 
 impl<T> Deref for BasicBox<'_, T> {
     type Target = T;
 
-    #[inline]
     fn deref(&self) -> &Self::Target {
-        // Safety: Always contains a valid object when this function is callable, see above
-        unsafe { &self.as_entry().data }
+        &self.0
     }
 }
 
 impl<T> DerefMut for BasicBox<'_, T> {
-    #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        // Safety: Always contains a valid object when this function is callable, see above
-        unsafe { &mut self.as_entry_mut().data }
+        &mut self.0
     }
 }
 
 impl<T> fmt::Debug for BasicBox<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        f.debug_tuple("BasicBox")
-            .field(&self.0.as_ref().map(|v| *v as *const Entry<T>))
-            .finish()
+        f.debug_tuple("BasicBox").field(&self.0).finish()
     }
 }
-
-// /// Implements the NaN-Tagging API. This is u64 that can be OR'ed with a mask to form a quiet
-// /// NaN.
-// impl<T> BasicBox<'_, T, NaNTagging> {
-//     /// Zero cost conversion to a u64 identifier of the slot. This identifier is guaranteed
-//     /// to represent a 48bit wide 8-aligned pointer. Thus highest 16 bits and the last 3 bits
-//     /// can be used for storing auxiliary information (NaN tagging).
-//     #[inline]
-//     #[must_use]
-//     pub fn into_u64(self) -> u64 {
-//         debug_assert_eq!(
-//             self.0.unwrap().as_ptr() as u64 & 0xffff000000000007,
-//             0,
-//             "Something is wrong on this platform"
-//         );
-//         self.0.unwrap().as_ptr() as u64
-//     }
-// FIXME: lifetime on Pool
-//     /// Converts a usize identifier obtained by `as_u64()` back into a `BasicBox`.
-//     ///
-//     /// # Safety
-//     ///
-//     /// The identifier must point to the same allocation as the slot where it was got from.
-//     #[inline]
-//     #[must_use]
-//     pub unsafe fn from_u64(id: u64) -> Self {
-//         debug_assert_eq!(id & 0xffff000000000007, 0, "Invalid identifier");
-//         Self(
-//             Some(NonNull::new(id as *mut Entry<T>).expect("Invalid identifier")),
-//             PhantomData,
-//             PhantomData,
-//             PhantomData,
-//         )
-//     }
-//
-//     /// Converts a usize identifier obtained by `as_usize()` back into a `BasicBox`. Before
-//     /// doing so it applies a mask to strip away any auxiliary bits.
-//     ///
-//     /// # Safety
-//     ///
-//     /// The identifier must point to the same allocation as the slot where it was got from. It
-//     /// may have the auxiliary bits set.
-//     #[inline]
-//     #[must_use]
-//     pub unsafe fn from_u64_masked(id: u64) -> Self {
-//         Self(
-//             Some(NonNull::new((id & !0xffff000000000007) as *mut Entry<T>).expect("Invalid identifier")),
-//             PhantomData,
-//             PhantomData,
-//             PhantomData,
-//         )
-//     }
-// }

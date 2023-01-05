@@ -18,16 +18,18 @@ in weak ordered and the entry point always point close to where the last action 
 keep the caches hot.
 
 
+# UnsafeBox
+
+Allocating from a pool returns `UnsafeBox` handles. These are lightweight abstractions to memory
+allocations, they do not keep a relation to the pool and its lifetime. They are the underlying
+facility to build the safe abstractions below.
+
+
 # BasicBox
 
-Allocating from a pool returns `BasicBox` handles. These are lightweight abstractions to memory
-allocations, they do not keep a relation to the pool they are allocated from. The rationale for
-this design is to make them usable in a VM that uses NaN tagging. Thus deallocating a
-`BasicBox` should be explicitly done with `pool.dealloc(simplebox)`.
-
-When this explicit deallocation is not possible (for example when panicking), `BasicBox` still
-becomes properly destructed but its memory leaks within its pool unil that pool becomes
-dropped.
+These are Boxes that may leak memory when not explicitly given back to the Pool. Still their
+use is memory safe under all circumstances. They offer the most efficient way to allocate
+memory.
 
 
 # Box, Rc and Sc

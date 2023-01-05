@@ -92,51 +92,51 @@ where
 
     // PLANNED: try_alloc() with graceful backing off allocation and error handling
 
-    /// Allocates a new `BasicBox` from this pool, initializes it with the supplied object.
+    /// Allocates a new `UnsafeBox` from this pool, initializes it with the supplied object.
     /// Freeing the object should be done manually with `pool.dealloc()`, `pool.forget()` or
-    /// `pool.take()`. When a `BasicBox` is not deallocated, taken or forgotten as above then
+    /// `pool.take()`. When a `UnsafeBox` is not deallocated, taken or forgotten as above then
     /// its it will leak until the Pool becomes dropped, this happens when panicking or might
     /// be intentional when the whole Pool becomes dropped at a later time.
     #[inline]
-    fn alloc(&self, t: T) -> BasicBox<T> {
+    fn alloc(&self, t: T) -> UnsafeBox<T> {
         let mut entry = self.alloc_entry();
         unsafe {
             entry.as_ptr().write(Entry {
                 data: ManuallyDrop::new(t),
             });
-            BasicBox::new(entry.as_mut())
+            UnsafeBox::new(entry.as_mut())
         }
     }
 
-    /// Frees `BasicBox` by calling its destructor. Puts the given memory back into the
+    /// Frees `UnsafeBox` by calling its destructor. Puts the given memory back into the
     /// freelist.
     ///
     /// # Panics
     ///
-    ///  * The `BasicBox` is not allocated from this pool.
+    ///  * The `UnsafeBox` is not allocated from this pool.
     #[inline]
-    fn dealloc(&self, mut bbox: BasicBox<T>) {
+    fn dealloc(&self, mut ubox: UnsafeBox<T>) {
         self.with_lock(|pool| {
-            bbox.assert_initialized();
+            ubox.assert_initialized();
             unsafe {
-                pool.free_entry(bbox.manually_drop());
+                pool.free_entry(ubox.manually_drop());
             }
         });
     }
 
-    /// Free a `BasicBox` by calling its destructor. Puts the given memory back into the
+    /// Free a `UnsafeBox` by calling its destructor. Puts the given memory back into the
     /// freelist. This function does not check if the object belongs to the pool. This makes
-    /// it slightly faster but unsafe for that reason. Nevertheless many uses of `BasicBox`
+    /// it slightly faster but unsafe for that reason. Nevertheless many uses of `UnsafeBox`
     /// can guarantee this invariant because there is only one pool in use or the associated
-    /// pool is stored along in a safe abstraction that keeps the `BasicBox`.
+    /// pool is stored along in a safe abstraction that keeps the `UnsafeBox`.
     ///
     /// # Safety
     ///
-    ///  * The `BasicBox` must be allocated from this `Pool`, otherwise this is UB.
+    ///  * The `UnsafeBox` must be allocated from this `Pool`, otherwise this is UB.
     #[inline]
-    unsafe fn dealloc_unchecked(&self, mut bbox: BasicBox<T>) {
+    unsafe fn dealloc_unchecked(&self, mut ubox: UnsafeBox<T>) {
         self.with_lock(|pool| {
-            pool.fast_free_entry_unchecked(bbox.manually_drop());
+            pool.fast_free_entry_unchecked(ubox.manually_drop());
         });
     }
 
@@ -144,25 +144,25 @@ where
     ///
     /// # Panics
     ///
-    ///  * The `BasicBox` is not allocated from this pool
+    ///  * The `UnsafeBox` is not allocated from this pool
     #[inline]
-    fn forget(&self, mut bbox: BasicBox<T>) {
+    fn forget(&self, mut ubox: UnsafeBox<T>) {
         self.with_lock(|pool| unsafe {
-            pool.free_entry(bbox.take_entry());
+            pool.free_entry(ubox.take_entry());
         });
     }
 
-    /// Takes an object out of the Pool and returns it. The `BasicBox` is put back to the
+    /// Takes an object out of the Pool and returns it. The `UnsafeBox` is put back to the
     /// freelist.
     ///
     /// # Panics
     ///
-    ///  * The `BasicBox` is not allocated from this pool
+    ///  * The `UnsafeBox` is not allocated from this pool
     #[inline]
-    fn take(&self, mut bbox: BasicBox<T>) -> T {
+    fn take(&self, mut ubox: UnsafeBox<T>) -> T {
         self.with_lock(|pool| unsafe {
-            let ret = bbox.take();
-            pool.free_entry(bbox.take_entry());
+            let ret = ubox.take();
+            pool.free_entry(ubox.take_entry());
             ret
         })
     }
@@ -248,7 +248,7 @@ impl<T> PoolInner<T> {
     /// # Safety
     ///
     ///  * The object must be already destructed (if possible)
-    unsafe fn free_entry(&mut self, entry: &mut Entry<T>) {
+    pub(crate) unsafe fn free_entry(&mut self, entry: &mut Entry<T>) {
         if let Some(freelist_last) = self.freelist {
             self.blocks[0..self.blocks_allocated]
                 .iter()

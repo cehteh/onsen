@@ -3,28 +3,26 @@ use onsen::*;
 #[test]
 fn smoke() {
     let pool: Pool<&str> = Pool::new();
-    let memory = pool.alloc("Hello Memory");
-    pool.dealloc(memory)
+    let bbox = BasicBox::default(&pool);
+    BasicBox::drop(bbox, &pool)
 }
 
 #[test]
 fn alloc_access() {
     let pool: Pool<&str> = Pool::new();
-
-    let memory = pool.alloc("Hello Memory");
-
-    assert_eq!(*memory, "Hello Memory");
-    pool.dealloc(memory)
+    let bbox = BasicBox::new("Hello Memory", &pool);
+    assert_eq!(*bbox, "Hello Memory");
+    BasicBox::drop(bbox, &pool)
 }
 
 #[test]
 fn alloc_mutate() {
     let pool: Pool<u64> = Pool::new();
 
-    let mut memory = pool.alloc(12345);
+    let mut bbox = BasicBox::new(12345, &pool);
 
-    assert_eq!(*memory, 12345);
-    *memory = 54321;
-    assert_eq!(*memory, 54321);
-    pool.dealloc(memory)
+    assert_eq!(*bbox, 12345);
+    *bbox = 54321;
+    assert_eq!(*bbox, 54321);
+    BasicBox::drop(bbox, &pool)
 }

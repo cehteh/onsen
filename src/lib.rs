@@ -9,6 +9,8 @@
 #![warn(clippy::semicolon_if_nothing_returned)]
 #![warn(missing_docs)]
 #![warn(rustdoc::missing_crate_level_docs)]
+#![warn(clippy::perf)]
+#![warn(clippy::style)]
 
 /// Maximum number of blocks in a Pool
 pub(crate) const NUM_BLOCKS: usize = 44;
@@ -26,6 +28,7 @@ mod entry;
 mod macros;
 mod pool;
 // mod rcpool;
+mod unsafebox;
 // mod refcounted;
 // mod stpool;
 // mod strongcounted;
@@ -35,11 +38,12 @@ mod pool;
 // mod tstrongcounted;
 
 //pub use boxed::*;
+pub use basicbox::*;
 pub use entry::*;
 pub use pool::*;
 // pub use rcpool::*;
+pub use unsafebox::*;
 // pub use refcounted::*;
-pub use basicbox::*;
 // pub use strongcounted::*;
 // pub use tpool::*;
 
