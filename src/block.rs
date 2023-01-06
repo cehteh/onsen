@@ -69,6 +69,11 @@ impl<T: Sized> Block<T> {
         self.len_used == self.capacity
     }
 
+    /// diagnostics (used + free, capacity)
+    pub(crate) fn reserved(&self) -> (usize, usize) {
+        (self.len_used, self.capacity)
+    }
+
     /// gets one entry from the unused capacity, panics when the block is full (in debug mode)
     pub(crate) fn extend(&mut self) -> NonNull<Entry<T>> {
         debug_assert!(self.len_used < self.capacity);

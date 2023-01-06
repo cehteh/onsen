@@ -298,6 +298,32 @@ impl<T> PoolInner<T> {
 
         len
     }
+
+    /// Diagnostics returning a (used+free, capacity) tuple
+    pub fn reserved(&self) -> (usize, usize) {
+        self.blocks[0..self.blocks_allocated]
+            .into_iter()
+            .fold((0, 0), |(used, capacity), block| {
+                let (block_used, block_capacity) = block.as_ref().unwrap().reserved();
+                (used + block_used, capacity + block_capacity)
+            })
+    }
+
+    /// Diagnostics returning a (used, free, capacity) tuple. This function is rather
+    /// expensive because it walks the freelist!
+    pub fn stat(&self) -> (usize, usize, usize) {
+        let (reserved, capacity) = self.reserved();
+        let free = self.freelist_len();
+        (reserved - free, free, capacity)
+    }
+
+    /// Diagnostics checking that no allocations are active. This can be used to check that no
+    /// `UnsafeBox` outlived the Pool before it becomes dropped. This is expensive because it
+    /// calls `stat()`
+    pub fn is_all_free(&self) -> bool {
+        let (used, _, _) = self.stat();
+        used == 0
+    }
 }
 
 impl<T> fmt::Debug for PoolInner<T> {
