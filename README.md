@@ -22,7 +22,9 @@ keep the caches hot.
 
 Allocating from a pool returns `UnsafeBox` handles. These are lightweight abstractions to memory
 allocations, they do not keep a relation to the pool and its lifetime. They are the underlying
-facility to build the safe abstractions below.
+facility to build the safe abstractions below. These boxes are unsafe because they have no
+lifetime bound to their Pool but must not outlive it. This is asserted in debug builds but
+because of cost left out in release builds.
 
 
 # BasicBox

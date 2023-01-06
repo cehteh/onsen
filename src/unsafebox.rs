@@ -18,7 +18,8 @@ use crate::*;
 ///
 /// # Safety
 ///
-///  * A `UnsafeBox` must be dropped before its Pool becomes dropped, failing to do so is UB.
+/// A `UnsafeBox` must be dropped before its Pool becomes dropped, failing to do so is UB.
+/// In debug builds this becomes asserted and will panic.
 ///
 #[repr(transparent)]
 pub struct UnsafeBox<T>(

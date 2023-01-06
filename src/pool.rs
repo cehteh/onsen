@@ -32,6 +32,16 @@ impl<T> fmt::Debug for Pool<T> {
     }
 }
 
+impl<T> Drop for Pool<T> {
+    #[inline]
+    fn drop(&mut self) {
+        debug_assert!(
+            self.with_lock(|pool| pool.is_all_free()),
+            "Dropped pool with active allocations"
+        );
+    }
+}
+
 impl<T> PrivPoolApi<T> for Pool<T> {}
 
 impl<T> PoolApi<T> for Pool<T> {}
@@ -348,5 +358,14 @@ mod pool_tests {
     #[test]
     fn smoke() {
         let _pool: Pool<String> = Pool::new();
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    #[should_panic]
+    fn leak_unsafe_box() {
+        let pool: Pool<String> = Pool::new();
+        let bbox = pool.alloc("I am a Zombie".to_string());
+        std::mem::forget(bbox)
     }
 }
