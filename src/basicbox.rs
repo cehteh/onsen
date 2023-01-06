@@ -1,4 +1,9 @@
+use std::borrow::Borrow;
+use std::borrow::BorrowMut;
+use std::cmp::Ordering;
 use std::fmt;
+use std::hash::Hash;
+use std::hash::Hasher;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -90,8 +95,80 @@ impl<T> DerefMut for BasicBox<'_, T> {
     }
 }
 
+impl<T> Borrow<T> for BasicBox<'_, T> {
+    #[inline]
+    fn borrow(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> BorrowMut<T> for BasicBox<'_, T> {
+    #[inline]
+    fn borrow_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T> AsRef<T> for BasicBox<'_, T> {
+    #[inline]
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T> AsMut<T> for BasicBox<'_, T> {
+    #[inline]
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
+}
+
+impl<T: PartialEq> PartialEq for BasicBox<'_, T> {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        PartialEq::eq(&**self, &**other)
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for BasicBox<'_, T> {
+    partial_ord_impl! {}
+}
+
+impl<T: Ord> Ord for BasicBox<'_, T> {
+    #[inline]
+    fn cmp(&self, other: &Self) -> Ordering {
+        Ord::cmp(&**self, &**other)
+    }
+}
+impl<T: Eq> Eq for BasicBox<'_, T> {}
+
+impl<T: Hash> Hash for BasicBox<'_, T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        (**self).hash(state);
+    }
+}
+
+impl<T: Hasher> Hasher for BasicBox<'_, T> {
+    hasher_impl! {}
+}
+
+impl<T: fmt::Display> fmt::Display for BasicBox<'_, T> {
+    #[mutants::skip] /* we just pretend it works */
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
+    }
+}
+
 impl<T> fmt::Debug for BasicBox<'_, T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         f.debug_tuple("BasicBox").field(&self.0).finish()
+    }
+}
+
+impl<T> fmt::Pointer for BasicBox<'_, T> {
+    #[mutants::skip] /* we just pretend it works */
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let ptr: *const T = &**self;
+        fmt::Pointer::fmt(&ptr, f)
     }
 }
