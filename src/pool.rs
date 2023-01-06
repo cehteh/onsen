@@ -300,9 +300,11 @@ impl<T> PoolInner<T> {
     }
 
     /// Diagnostics returning a (used+free, capacity) tuple
+    #[must_use]
+    #[allow(clippy::missing_panics_doc)]
     pub fn reserved(&self) -> (usize, usize) {
         self.blocks[0..self.blocks_allocated]
-            .into_iter()
+            .iter()
             .fold((0, 0), |(used, capacity), block| {
                 let (block_used, block_capacity) = block.as_ref().unwrap().reserved();
                 (used + block_used, capacity + block_capacity)
@@ -311,6 +313,7 @@ impl<T> PoolInner<T> {
 
     /// Diagnostics returning a (used, free, capacity) tuple. This function is rather
     /// expensive because it walks the freelist!
+    #[must_use]
     pub fn stat(&self) -> (usize, usize, usize) {
         let (reserved, capacity) = self.reserved();
         let free = self.freelist_len();
@@ -320,6 +323,7 @@ impl<T> PoolInner<T> {
     /// Diagnostics checking that no allocations are active. This can be used to check that no
     /// `UnsafeBox` outlived the Pool before it becomes dropped. This is expensive because it
     /// calls `stat()`
+    #[must_use]
     pub fn is_all_free(&self) -> bool {
         let (used, _, _) = self.stat();
         used == 0
