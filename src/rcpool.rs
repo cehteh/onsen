@@ -21,23 +21,36 @@ impl<T> Clone for RcPool<T> {
     }
 }
 
-impl<T> PoolApi<T> for RcPool<T> {}
-
-impl<T> PoolLock<T> for &RcPool<T> {
-    #[inline]
-    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(self, f: F) -> R {
-        f(&mut self.0.borrow_mut())
-    }
-}
-
 impl<T> Default for RcPool<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> AsRef<RcPool<T>> for RcPool<T> {
-    fn as_ref(&self) -> &Self {
+impl<T> PrivPoolApi<T> for RcPool<T> {
+    #[inline]
+    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(&self, f: F) -> R {
+        f(&mut self.0.borrow_mut())
+    }
+}
+
+impl<T> PoolApi<T> for RcPool<T> {}
+
+impl<T> SharedPoolApi<T> for RcPool<T> {}
+
+impl<T> AsSharedPool<T, RcPool<T>> for RcPool<T> {
+    #[inline]
+    fn as_shared_pool(&self) -> &Self {
         self
+    }
+}
+
+#[cfg(test)]
+mod pool_tests {
+    use crate::*;
+
+    #[test]
+    fn smoke() {
+        let _pool: RcPool<String> = RcPool::new();
     }
 }

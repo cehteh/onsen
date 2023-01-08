@@ -118,3 +118,14 @@ where
         })
     }
 }
+
+/// A pool that can be shared, just adds `Clone` to the `PoolApi`
+pub trait SharedPoolApi<T>: PoolApi<T> + Clone {}
+
+/// Getting a reference to the shared pool. This makes it possible that not only pools
+/// themselves can be referenced but also boxed values that contains reference to the pool
+/// they are created from.
+pub trait AsSharedPool<T, P: SharedPoolApi<T>> {
+    /// Returns a reference to the underlying shared pool.
+    fn as_shared_pool(&self) -> &P;
+}
