@@ -40,16 +40,14 @@ impl<T> Drop for Pool<T> {
     }
 }
 
-impl<T> PrivPoolApi<T> for Pool<T> {}
-
-impl<T> PoolApi<T> for Pool<T> {}
-
-impl<T> PoolLock<T> for Pool<T> {
+impl<T> PrivPoolApi<T> for Pool<T> {
     #[inline]
     fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(&self, f: F) -> R {
         f(&mut self.0.borrow_mut())
     }
 }
+
+impl<T> PoolApi<T> for Pool<T> {}
 
 #[cfg(test)]
 mod pool_tests {

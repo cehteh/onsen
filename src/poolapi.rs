@@ -3,18 +3,12 @@ use std::ptr::NonNull;
 
 use crate::*;
 
-/// Interior mutability of a pool.
-#[doc(hidden)]
-pub trait PoolLock<T> {
-    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(&self, f: F) -> R;
-}
-
 /// internal API
 #[doc(hidden)]
-pub trait PrivPoolApi<T>
-where
-    Self: PoolLock<T> + Sized,
-{
+pub trait PrivPoolApi<T>: Sized {
+    /// Implements the interior mutability of a pool, if any.
+    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(&self, f: F) -> R;
+
     /// Allocates a new entry, either from the freelist or by extending the pool.
     /// Returns an uninitialized Entry pointer.
     fn alloc_entry(&self) -> NonNull<Entry<T>> {
