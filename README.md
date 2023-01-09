@@ -10,15 +10,32 @@ of objects. It is extremely fast when one can use alloc only or alloc mostly tem
 which where memory becomes deallocated all at once when the Pool becomes destructed.
 
 
-# Details
+# Pools
 
 Onsen pools allocate blocks with exponentially growing sizes. Allocations are served from
 these blocks. Freed entries are kept in a double linked cyclic freelist. This freelist is kept
 in weak ordered and the entry point always point close to where the last action happend to
-keep the caches hot.
+keep the caches hot. Access to Pools is done by `PoolApi` traits. The visible pools wrap an
+internal representation for interior mutable and/or shared access.
 
 
-# UnsafeBox
+## Pool
+
+This pool is only protected by a `RefCell`, it can not be shared. This makes it only usable
+with `BasicBox` on a single thread. Its advantage is that it has the best performance and can
+be used like an arena allocator where the `BasicBoxes` are just dropped in a leaky way and
+memory becomes reclaimed when the `Pool` becomes dropped.
+
+
+## RcPool
+
+Adds a reference counter to the pool. Thus makes it available to the different `Box`
+implementations. `RcPool` is still meant for singlethread use.
+
+
+# Boxes
+
+## UnsafeBox
 
 Allocating from a pool returns `UnsafeBox` handles. These are lightweight abstractions to memory
 allocations, they do not keep a relation to the pool and its lifetime. They are the underlying
@@ -27,21 +44,22 @@ lifetime bound to their Pool but must not outlive it. This is asserted in debug 
 because of cost left out in release builds.
 
 
-# BasicBox
+## BasicBox
 
 These are Boxes that may leak memory when not explicitly given back to the Pool. Still their
 use is memory safe under all circumstances. They offer the most efficient way to allocate
-memory.
+memory, they have the same performance as `UnsafeBox`.
 
 
-# Box, Rc and Sc
+## Box, Rc and Sc
 
 Onsen comes with its own `Box` and `Rc`/`Weak` implementations that wrap the underlying
-`BasicBox` in a safe way. A `Sc` reference counted box without weak reference support is
-available as well and provides an advantage for small objects where the weak count would add
-some weight.
+`UnsafeBox` in a safe way by keeping a reference to the associated pool around. A `Sc`
+reference counted box without weak reference support is available as well and provides an
+advantage for small objects where the weak count would add some weight.
 
-For each of these a variant that uses static global pools is available as well.
+All these boxes need pools that are shareable, either because they are reference counted or
+static.
 
 
 # Features

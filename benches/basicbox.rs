@@ -233,7 +233,7 @@ fn criterion_benchmark(c: &mut Criterion) {
             },
         );
 
-        baseline.bench_with_input(BenchmarkId::new("onsen::Box unchecked", size), &size, {
+        baseline.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             move |b, &s| {
                 let pool: onsen::RcPool<u64> = onsen::RcPool::new();
                 pool.with_min_entries(1000);

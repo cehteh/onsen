@@ -21,7 +21,7 @@ use crate::*;
 /// where it was allocated. This happens especially when panicking drops unsafe boxes.
 ///
 /// Sometimes can be used as advantage when using temporary pools where the memory reclamation
-/// will happen when the `Pool` becomes destroyed.
+/// will happen when the `Pool` becomes dropped.
 #[repr(transparent)]
 pub struct BasicBox<'a, T>(UnsafeBox<T>, PhantomData<&'a Pool<T>>);
 
