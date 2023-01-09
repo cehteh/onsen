@@ -5,8 +5,6 @@ use std::time::Duration;
 use onsen;
 use onsen::PoolApi;
 
-// TODO: add BasicBox w/leak benches
-
 const SMALL: usize = 3;
 const MEDIUM: usize = 64;
 const BIG: usize = 1000;
