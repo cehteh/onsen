@@ -28,9 +28,10 @@ fn forget() {
 }
 
 #[test]
-fn take() {
+fn into_inner() {
     let pool: RcPool<&str> = RcPool::new();
-    let _ = Box::take(Box::new("Boxed", &pool));
+    let v: &str = Box::into_inner(Box::new("Was Boxed", &pool));
+    assert_eq!(v, "Was Boxed");
 }
 
 #[test]

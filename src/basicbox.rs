@@ -59,7 +59,7 @@ impl<'a, T> BasicBox<'a, T> {
     /// # Panics
     ///
     /// This `BasicBox` was not allocated from the given pool.
-    pub fn take(this: Self, pool: &'a Pool<T>) -> T {
+    pub fn into_inner(this: Self, pool: &'a Pool<T>) -> T {
         pool.take(this.0)
     }
 

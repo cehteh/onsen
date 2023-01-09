@@ -46,7 +46,7 @@ impl<T, P: SharedPoolApi<T>> Box<T, P> {
     /// Associated function that frees the memory of a Box and returns the value it was holding.
     #[inline]
     #[must_use]
-    pub fn take(mut this: Self) -> T {
+    pub fn into_inner(mut this: Self) -> T {
         unsafe { this.slot.take() }
     }
 }
