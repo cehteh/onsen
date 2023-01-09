@@ -1,6 +1,7 @@
 use std::fmt;
 use std::mem::ManuallyDrop;
 use std::ops::{Deref, DerefMut};
+use std::ptr::NonNull;
 
 use crate::*;
 
@@ -26,7 +27,7 @@ pub struct UnsafeBox<T>(
     // This Option is always `Some()` in live objects, only `dealloc*()`, `forget()` and
     // `take()` which consume the box sets it to `None` to notify the `Drop` implementation
     // that the value is already destructed.
-    Option<*mut Entry<T>>,
+    Option<NonNull<Entry<T>>>,
 );
 
 unsafe impl<T: Send> Send for UnsafeBox<T> {}
@@ -35,7 +36,8 @@ unsafe impl<T: Sync> Sync for UnsafeBox<T> {}
 impl<T> UnsafeBox<T> {
     // Private ctor
     pub(crate) unsafe fn new(from: &mut Entry<T>) -> Self {
-        Self(Some(from))
+        // Safety: from is a valid reference
+        Self(Some(NonNull::new_unchecked(from)))
     }
 }
 
@@ -48,23 +50,23 @@ impl<T> UnsafeBox<T> {
     pub(crate) unsafe fn as_entry_mut(&mut self) -> &mut Entry<T> {
         debug_assert!(self.0.is_some());
         // Safety: Option is always `Some` when calling this, see above
-        &mut *self.0.unwrap_unchecked()
+        self.0.unwrap_unchecked().as_mut()
     }
 
     pub(crate) unsafe fn as_entry(&self) -> &Entry<T> {
         debug_assert!(self.0.is_some());
         // Safety: Option is always `Some` when calling this, see above
-        &*self.0.unwrap_unchecked()
+        self.0.unwrap_unchecked().as_ref()
     }
 
     pub(crate) unsafe fn take_entry(&mut self) -> &mut Entry<T> {
         debug_assert!(self.0.is_some());
-        &mut *self.0.take().unwrap_unchecked()
+        self.0.take().unwrap_unchecked().as_mut()
     }
 
     pub(crate) unsafe fn manually_drop(&mut self) -> &mut Entry<T> {
         ManuallyDrop::drop(&mut self.as_entry_mut().data);
-        &mut *self.0.take().unwrap_unchecked()
+        self.0.take().unwrap_unchecked().as_mut()
     }
 
     pub(crate) unsafe fn take(&mut self) -> T {
@@ -102,8 +104,6 @@ impl<T> DerefMut for UnsafeBox<T> {
 
 impl<T> fmt::Debug for UnsafeBox<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        f.debug_tuple("UnsafeBox")
-            .field(&self.0.as_ref().map(|v| *v as *const Entry<T>))
-            .finish()
+        f.debug_tuple("UnsafeBox").field(&self.0).finish()
     }
 }

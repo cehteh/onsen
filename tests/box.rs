@@ -7,6 +7,14 @@ fn smoke() {
 }
 
 #[test]
+fn size() {
+    assert_eq!(
+        std::mem::size_of::<Box<usize, RcPool<usize>>>(),
+        std::mem::size_of::<[usize; 2]>()
+    );
+}
+
+#[test]
 fn frombox() {
     let pool: RcPool<&str> = RcPool::new();
     let mybox = Box::new("Boxed", &pool);

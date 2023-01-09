@@ -54,3 +54,11 @@ mod pool_tests {
         let _pool: RcPool<String> = RcPool::new();
     }
 }
+
+#[test]
+fn size() {
+    assert_eq!(
+        std::mem::size_of::<UnsafeBox<usize>>(),
+        std::mem::size_of::<[usize; 1]>()
+    );
+}
