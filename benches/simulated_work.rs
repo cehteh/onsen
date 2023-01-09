@@ -5,15 +5,17 @@ use std::time::Duration;
 use onsen;
 use onsen::PoolApi;
 
+// TODO: add BasicBox w/leak benches
+
+const SMALL: usize = 3;
+const MEDIUM: usize = 64;
+const BIG: usize = 1000;
+
 // The data we work on contains a primary value used for sorting and some payload which becomes mutated
 pub struct Data<const N: usize> {
     primary: u32,
     payload: [u32; N],
 }
-
-type SmallData = Data<3>;
-type MedData = Data<64>;
-type BigData = Data<1000>;
 
 impl<const N: usize> Data<N> {
     fn new(primary: u32) -> Self {
@@ -28,6 +30,73 @@ trait DataHandle {
     fn primary(&self) -> &u32;
     fn primary_mut(&mut self) -> &mut u32;
     fn payload(&mut self) -> &mut [u32];
+}
+
+pub struct OwnedData<const N: usize>(Data<N>, usize);
+
+impl<const N: usize> DataHandle for OwnedData<N> {
+    fn primary(&self) -> &u32 {
+        &self.0.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.0.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.0.payload
+    }
+}
+
+// data in a rust box
+pub struct BoxedData<const N: usize>(Box<Data<N>>);
+
+impl<const N: usize> DataHandle for BoxedData<N> {
+    fn primary(&self) -> &u32 {
+        &self.0.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.0.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.0.payload
+    }
+}
+
+// data in a onsen box
+pub struct OnsenBoxedData<const N: usize>(onsen::Box<Data<N>, onsen::RcPool<Data<N>>>);
+
+impl<const N: usize> DataHandle for OnsenBoxedData<N> {
+    fn primary(&self) -> &u32 {
+        &self.0.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.0.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.0.payload
+    }
+}
+
+// data in a onsen basic box
+pub struct OnsenBasicBoxedData<'a, const N: usize>(onsen::BasicBox<'a, Data<N>>);
+
+impl<'a, const N: usize> DataHandle for OnsenBasicBoxedData<'a, N> {
+    fn primary(&self) -> &u32 {
+        &self.0.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.0.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.0.payload
+    }
 }
 
 // Worker contains context and work we simulate
@@ -132,376 +201,77 @@ trait Worker<'a> {
     }
 }
 
-/// Owned data (copypaste, workaround the lack of GAT's, eventually needs macro or wait for GAT's)
-pub struct SmallOwnedData(SmallData, usize);
-pub struct MedOwnedData(MedData, usize);
-pub struct BigOwnedData(BigData, usize);
-
-impl DataHandle for SmallOwnedData {
-    fn primary(&self) -> &u32 {
-        &self.0.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.0.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.0.payload
-    }
-}
-
-impl DataHandle for MedOwnedData {
-    fn primary(&self) -> &u32 {
-        &self.0.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.0.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.0.payload
-    }
-}
-
-impl DataHandle for BigOwnedData {
-    fn primary(&self) -> &u32 {
-        &self.0.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.0.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.0.payload
-    }
-}
-
-// data in a rust box
-pub struct SmallBoxedData(Box<SmallData>);
-pub struct MedBoxedData(Box<MedData>);
-pub struct BigBoxedData(Box<BigData>);
-
-impl DataHandle for SmallBoxedData {
-    fn primary(&self) -> &u32 {
-        &self.0.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.0.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.0.payload
-    }
-}
-
-impl DataHandle for MedBoxedData {
-    fn primary(&self) -> &u32 {
-        &self.0.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.0.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.0.payload
-    }
-}
-
-impl DataHandle for BigBoxedData {
-    fn primary(&self) -> &u32 {
-        &self.0.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.0.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.0.payload
-    }
-}
-
-// data in a onsen box
-impl DataHandle for onsen::Box<SmallData> {
-    fn primary(&self) -> &u32 {
-        &self.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
-    }
-}
-
-impl DataHandle for onsen::Box<MedData> {
-    fn primary(&self) -> &u32 {
-        &self.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
-    }
-}
-
-impl DataHandle for onsen::Box<BigData> {
-    fn primary(&self) -> &u32 {
-        &self.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
-    }
-}
-
-// data in a onsen tbox
-#[cfg(feature = "tbox")]
-struct Bench;
-#[cfg(feature = "tbox")]
-onsen::define_tbox_pool!(Bench: SmallData);
-#[cfg(feature = "tbox")]
-onsen::define_tbox_pool!(Bench: MedData);
-#[cfg(feature = "tbox")]
-onsen::define_tbox_pool!(Bench: BigData);
-
-#[cfg(feature = "tbox")]
-impl DataHandle for onsen::TBox<SmallData, Bench> {
-    fn primary(&self) -> &u32 {
-        &self.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
-    }
-}
-
-#[cfg(feature = "tbox")]
-impl DataHandle for onsen::TBox<MedData, Bench> {
-    fn primary(&self) -> &u32 {
-        &self.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
-    }
-}
-
-#[cfg(feature = "tbox")]
-impl DataHandle for onsen::TBox<BigData, Bench> {
-    fn primary(&self) -> &u32 {
-        &self.primary
-    }
-
-    fn primary_mut(&mut self) -> &mut u32 {
-        &mut self.primary
-    }
-
-    fn payload(&mut self) -> &mut [u32] {
-        &mut self.payload
-    }
-}
-
-// Now implement the workers for owned
+// Worker for owned data
 #[repr(C)]
-pub struct SmallOwnedWorker;
-#[repr(C)]
-pub struct MedOwnedWorker;
-#[repr(C)]
-pub struct BigOwnedWorker;
+pub struct OwnedWorker<const N: usize>;
 
-impl Worker<'_> for SmallOwnedWorker {
-    type Data = SmallOwnedData;
+impl<const N: usize> Worker<'_> for OwnedWorker<N> {
+    type Data = OwnedData<N>;
     fn new() -> Self {
-        SmallOwnedWorker
+        Self
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(SmallOwnedData(Data::new(primary), primary as usize))
+        Some(OwnedData(Data::new(primary), primary as usize))
     }
 }
 
-impl Worker<'_> for MedOwnedWorker {
-    type Data = MedOwnedData;
-    fn new() -> Self {
-        MedOwnedWorker
-    }
-
-    fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(MedOwnedData(Data::new(primary), primary as usize))
-    }
-}
-
-impl Worker<'_> for BigOwnedWorker {
-    type Data = BigOwnedData;
-    fn new() -> Self {
-        BigOwnedWorker
-    }
-
-    fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(BigOwnedData(Data::new(primary), primary as usize))
-    }
-}
-
-// Now implement the workers for rust boxes
+// Worker for rust boxes
 #[repr(C)]
-pub struct SmallBoxWorker;
-#[repr(C)]
-pub struct MedBoxWorker;
-#[repr(C)]
-pub struct BigBoxWorker;
+pub struct BoxWorker<const N: usize>;
 
-impl Worker<'_> for SmallBoxWorker {
-    type Data = SmallBoxedData;
+impl<const N: usize> Worker<'_> for BoxWorker<N> {
+    type Data = BoxedData<N>;
     fn new() -> Self {
-        SmallBoxWorker
+        Self
     }
 
     fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(SmallBoxedData(Box::new(Data::new(primary))))
+        Some(BoxedData(Box::new(Data::new(primary))))
     }
 }
 
-impl Worker<'_> for MedBoxWorker {
-    type Data = MedBoxedData;
-    fn new() -> Self {
-        MedBoxWorker
-    }
-
-    fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(MedBoxedData(Box::new(Data::new(primary))))
-    }
+// Worker for onsen boxes
+pub struct OnsenBoxWorker<const N: usize> {
+    pool: onsen::RcPool<Data<N>>,
 }
 
-impl Worker<'_> for BigBoxWorker {
-    type Data = BigBoxedData;
-    fn new() -> Self {
-        BigBoxWorker
-    }
-
-    fn new_element(&self, primary: u32) -> Option<Self::Data> {
-        Some(BigBoxedData(Box::new(Data::new(primary))))
-    }
-}
-
-// // Now implement the workers for onsen boxes
-pub struct SmallOnsenWorker {
-    pool: onsen::RcPool<SmallData>,
-}
-
-pub struct MedOnsenWorker {
-    pool: onsen::RcPool<MedData>,
-}
-
-pub struct BigOnsenWorker {
-    pool: onsen::RcPool<BigData>,
-}
-
-impl<'a> Worker<'a> for SmallOnsenWorker {
-    type Data = onsen::Box<SmallData>;
+impl<'a, const N: usize> Worker<'a> for OnsenBoxWorker<N> {
+    type Data = OnsenBoxedData<N>;
     fn new() -> Self {
         let pool = onsen::RcPool::new();
         pool.with_min_entries(1000);
-        SmallOnsenWorker { pool }
+        OnsenBoxWorker { pool }
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(onsen::Box::new(Data::new(primary), &self.pool))
+        Some(OnsenBoxedData(onsen::Box::new(
+            Data::new(primary),
+            &self.pool,
+        )))
     }
 }
 
-impl<'a> Worker<'a> for MedOnsenWorker {
-    type Data = onsen::Box<MedData>;
+// Worker for leaking onsen basic boxes
+pub struct OnsenBasicBoxLeakWorker<const N: usize> {
+    pool: onsen::Pool<Data<N>>,
+}
+
+impl<'a, const N: usize> Worker<'a> for OnsenBasicBoxLeakWorker<N> {
+    type Data = OnsenBasicBoxedData<'a, N>;
     fn new() -> Self {
-        let pool = onsen::RcPool::new();
+        let pool = onsen::Pool::new();
         pool.with_min_entries(1000);
-        MedOnsenWorker { pool }
+        OnsenBasicBoxLeakWorker { pool }
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(onsen::Box::new(Data::new(primary), &self.pool))
+        Some(OnsenBasicBoxedData(onsen::BasicBox::new(
+            Data::new(primary),
+            &self.pool,
+        )))
     }
 }
-
-impl<'a> Worker<'a> for BigOnsenWorker {
-    type Data = onsen::Box<BigData>;
-    fn new() -> Self {
-        let pool = onsen::RcPool::new();
-        pool.with_min_entries(1000);
-        BigOnsenWorker { pool }
-    }
-
-    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(onsen::Box::new(Data::new(primary), &self.pool))
-    }
-}
-
-// Now implement the workers for onsen tbox
-pub struct SmallOnsenTBoxWorker;
-
-pub struct MedOnsenTBoxWorker;
-
-pub struct BigOnsenTBoxWorker;
-
-#[cfg(feature = "tbox")]
-impl<'a> Worker<'a> for SmallOnsenTBoxWorker {
-    type Data = onsen::TBox<SmallData, Bench>;
-    fn new() -> Self {
-        SmallOnsenTBoxWorker
-    }
-
-    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(onsen::TBox::new(Data::new(primary), Bench))
-    }
-}
-
-#[cfg(feature = "tbox")]
-impl<'a> Worker<'a> for MedOnsenTBoxWorker {
-    type Data = onsen::TBox<MedData, Bench>;
-    fn new() -> Self {
-        MedOnsenTBoxWorker
-    }
-
-    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(onsen::TBox::new(Data::new(primary), Bench))
-    }
-}
-
-#[cfg(feature = "tbox")]
-impl<'a> Worker<'a> for BigOnsenTBoxWorker {
-    type Data = onsen::TBox<BigData, Bench>;
-    fn new() -> Self {
-        BigOnsenTBoxWorker
-    }
-
-    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(onsen::TBox::new(Data::new(primary), Bench))
-    }
-}
-
-//
 
 #[inline(always)]
 fn fast_prng(state: &mut u32) -> u32 {
@@ -511,136 +281,145 @@ fn fast_prng(state: &mut u32) -> u32 {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
+    let test_range = [
+        1000, 10000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000,
+    ];
     // Keep benchmarks
     let mut simulated_work = c.benchmark_group("simulated keep, small data");
 
-    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+    for size in test_range.iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
         simulated_work.measurement_time(Duration::from_secs(30));
 
         simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
             |b, &s| {
-                let worker = SmallOwnedWorker::new();
+                let worker = OwnedWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
-                let worker = SmallBoxWorker::new();
+                let worker = BoxWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             |b, &s| {
-                let worker = SmallOnsenWorker::new();
+                let worker = OnsenBoxWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        #[cfg(feature = "tbox")]
-        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
-            |b, &s| {
-                onsen::TBox::<SmallData, Bench>::pool().acquire().unwrap();
-                let worker = SmallOnsenTBoxWorker::new();
-                b.iter(|| {
-                    worker.run_keep(*s);
-                });
-                onsen::TBox::<SmallData, Bench>::pool().release().unwrap();
-            }
-        });
+        simulated_work.bench_with_input(
+            BenchmarkId::new("leaking onsen::BasicBox", size),
+            &size,
+            {
+                |b, &s| {
+                    let worker = OnsenBasicBoxLeakWorker::<SMALL>::new();
+                    b.iter(|| {
+                        worker.run_keep(*s);
+                    })
+                }
+            },
+        );
     }
 
     drop(simulated_work);
+
     let mut simulated_work = c.benchmark_group("simulated keep, medium data");
 
-    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+    for size in test_range.iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
-        simulated_work.measurement_time(Duration::from_secs(60));
+        simulated_work.measurement_time(Duration::from_secs(30));
 
         simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
             |b, &s| {
-                let worker = MedOwnedWorker::new();
+                let worker = OwnedWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
-                let worker = MedBoxWorker::new();
+                let worker = BoxWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             |b, &s| {
-                let worker = MedOnsenWorker::new();
+                let worker = OnsenBoxWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        #[cfg(feature = "tbox")]
-        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
-            |b, &s| {
-                onsen::TBox::<MedData, Bench>::pool().acquire().unwrap();
-                let worker = MedOnsenTBoxWorker::new();
-                b.iter(|| {
-                    worker.run_keep(*s);
-                });
-                onsen::TBox::<MedData, Bench>::pool().release().unwrap();
-            }
-        });
+        simulated_work.bench_with_input(
+            BenchmarkId::new("leaking onsen::BasicBox", size),
+            &size,
+            {
+                |b, &s| {
+                    let worker = OnsenBasicBoxLeakWorker::<MEDIUM>::new();
+                    b.iter(|| {
+                        worker.run_keep(*s);
+                    })
+                }
+            },
+        );
     }
 
     drop(simulated_work);
+
+    // Keep benchmarks
     let mut simulated_work = c.benchmark_group("simulated keep, big data");
 
-    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+    for size in test_range.iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
-        simulated_work.measurement_time(Duration::from_secs(90));
+        simulated_work.measurement_time(Duration::from_secs(30));
 
-        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
-                let worker = BigBoxWorker::new();
+                let worker = BoxWorker::<BIG>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             |b, &s| {
-                let worker = BigOnsenWorker::new();
+                let worker = OnsenBoxWorker::<BIG>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
             }
         });
 
-        #[cfg(feature = "tbox")]
-        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
-            |b, &s| {
-                onsen::TBox::<BigData, Bench>::pool().acquire().unwrap();
-                let worker = BigOnsenTBoxWorker::new();
-                b.iter(|| {
-                    worker.run_keep(*s);
-                });
-                onsen::TBox::<BigData, Bench>::pool().release().unwrap();
-            }
-        });
+        simulated_work.bench_with_input(
+            BenchmarkId::new("leaking onsen::BasicBox", size),
+            &size,
+            {
+                |b, &s| {
+                    let worker = OnsenBasicBoxLeakWorker::<BIG>::new();
+                    b.iter(|| {
+                        worker.run_keep(*s);
+                    })
+                }
+            },
+        );
     }
 
     drop(simulated_work);
@@ -648,135 +427,137 @@ fn criterion_benchmark(c: &mut Criterion) {
     // Drop benchmarks
     let mut simulated_work = c.benchmark_group("simulated drop, small data");
 
-    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+    for size in test_range.iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
         simulated_work.measurement_time(Duration::from_secs(30));
 
         simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
             |b, &s| {
-                let worker = SmallOwnedWorker::new();
+                let worker = OwnedWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
-                let worker = SmallBoxWorker::new();
+                let worker = BoxWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             |b, &s| {
-                let worker = SmallOnsenWorker::new();
+                let worker = OnsenBoxWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        #[cfg(feature = "tbox")]
-        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
-            |b, &s| {
-                onsen::TBox::<SmallData, Bench>::pool().acquire().unwrap();
-                let worker = SmallOnsenTBoxWorker::new();
-                b.iter(|| {
-                    worker.run_drop(*s);
-                });
-                onsen::TBox::<SmallData, Bench>::pool().release().unwrap();
-            }
-        });
+        simulated_work.bench_with_input(
+            BenchmarkId::new("leaking onsen::BasicBox", size),
+            &size,
+            {
+                |b, &s| {
+                    let worker = OnsenBasicBoxLeakWorker::<SMALL>::new();
+                    b.iter(|| {
+                        worker.run_drop(*s);
+                    })
+                }
+            },
+        );
     }
-
     drop(simulated_work);
+
     let mut simulated_work = c.benchmark_group("simulated drop, medium data");
 
-    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+    for size in test_range.iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
-        simulated_work.measurement_time(Duration::from_secs(60));
+        simulated_work.measurement_time(Duration::from_secs(30));
 
         simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
             |b, &s| {
-                let worker = MedOwnedWorker::new();
+                let worker = OwnedWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
-                let worker = MedBoxWorker::new();
+                let worker = BoxWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             |b, &s| {
-                let worker = MedOnsenWorker::new();
+                let worker = OnsenBoxWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        #[cfg(feature = "tbox")]
-        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
-            |b, &s| {
-                onsen::TBox::<MedData, Bench>::pool().acquire().unwrap();
-                let worker = MedOnsenTBoxWorker::new();
-                b.iter(|| {
-                    worker.run_drop(*s);
-                });
-                onsen::TBox::<MedData, Bench>::pool().release().unwrap();
-            }
-        });
+        simulated_work.bench_with_input(
+            BenchmarkId::new("leaking onsen::BasicBox", size),
+            &size,
+            {
+                |b, &s| {
+                    let worker = OnsenBasicBoxLeakWorker::<MEDIUM>::new();
+                    b.iter(|| {
+                        worker.run_drop(*s);
+                    })
+                }
+            },
+        );
     }
-
     drop(simulated_work);
+
     let mut simulated_work = c.benchmark_group("simulated drop, big data");
 
-    for size in [100, 500, 1000, 3000, 5000, 7500, 10000].iter() {
+    for size in test_range.iter() {
         simulated_work.throughput(Throughput::Elements(*size as u64));
-        simulated_work.measurement_time(Duration::from_secs(90));
+        simulated_work.measurement_time(Duration::from_secs(30));
 
-        simulated_work.bench_with_input(BenchmarkId::new("rust box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
-                let worker = BigBoxWorker::new();
+                let worker = BoxWorker::<BIG>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
             |b, &s| {
-                let worker = BigOnsenWorker::new();
+                let worker = OnsenBoxWorker::<BIG>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
             }
         });
 
-        #[cfg(feature = "tbox")]
-        simulated_work.bench_with_input(BenchmarkId::new("onsen tbox", size), &size, {
-            |b, &s| {
-                onsen::TBox::<BigData, Bench>::pool().acquire().unwrap();
-                let worker = BigOnsenTBoxWorker::new();
-                b.iter(|| {
-                    worker.run_drop(*s);
-                });
-                onsen::TBox::<BigData, Bench>::pool().release().unwrap();
-            }
-        });
+        simulated_work.bench_with_input(
+            BenchmarkId::new("leaking onsen::BasicBox", size),
+            &size,
+            {
+                |b, &s| {
+                    let worker = OnsenBasicBoxLeakWorker::<BIG>::new();
+                    b.iter(|| {
+                        worker.run_drop(*s);
+                    })
+                }
+            },
+        );
     }
-
     drop(simulated_work);
 }
 
