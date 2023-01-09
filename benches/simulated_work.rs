@@ -455,19 +455,6 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
-
-        simulated_work.bench_with_input(
-            BenchmarkId::new("leaking onsen::BasicBox", size),
-            &size,
-            {
-                |b, &s| {
-                    let worker = OnsenBasicBoxLeakWorker::<SMALL>::new();
-                    b.iter(|| {
-                        worker.run_drop(*s);
-                    })
-                }
-            },
-        );
     }
     drop(simulated_work);
 
@@ -503,19 +490,6 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
-
-        simulated_work.bench_with_input(
-            BenchmarkId::new("leaking onsen::BasicBox", size),
-            &size,
-            {
-                |b, &s| {
-                    let worker = OnsenBasicBoxLeakWorker::<MEDIUM>::new();
-                    b.iter(|| {
-                        worker.run_drop(*s);
-                    })
-                }
-            },
-        );
     }
     drop(simulated_work);
 
@@ -542,19 +516,6 @@ fn criterion_benchmark(c: &mut Criterion) {
                 })
             }
         });
-
-        simulated_work.bench_with_input(
-            BenchmarkId::new("leaking onsen::BasicBox", size),
-            &size,
-            {
-                |b, &s| {
-                    let worker = OnsenBasicBoxLeakWorker::<BIG>::new();
-                    b.iter(|| {
-                        worker.run_drop(*s);
-                    })
-                }
-            },
-        );
     }
     drop(simulated_work);
 }
