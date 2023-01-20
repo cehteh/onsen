@@ -21,7 +21,11 @@ fn onsen_bbox_drop_unchecked(pool: &onsen::Pool<u64>) {
     }
 }
 
-fn onsen_box_drop(pool: &onsen::RcPool<u64>) {
+fn onsen_rcpool_box_drop(pool: &onsen::RcPool<u64>) {
+    black_box(onsen::Box::new(0u64, pool));
+}
+
+fn onsen_arcpool_box_drop(pool: &onsen::ArcPool<u64>) {
     black_box(onsen::Box::new(0u64, pool));
 }
 
@@ -50,7 +54,14 @@ fn onsen_bbox_many<'a>(howmany: usize, pool: &'a onsen::Pool<u64>) {
     }
 }
 
-fn onsen_box_many<'a>(howmany: usize, pool: &'a onsen::RcPool<u64>) {
+fn onsen_rcpool_box_many<'a>(howmany: usize, pool: &'a onsen::RcPool<u64>) {
+    let mut keep = Vec::with_capacity(howmany);
+    for _ in 0..howmany {
+        keep.push(onsen::Box::new(0u64, pool));
+    }
+}
+
+fn onsen_arcpool_box_many<'a>(howmany: usize, pool: &'a onsen::ArcPool<u64>) {
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
         keep.push(onsen::Box::new(0u64, pool));
@@ -114,7 +125,29 @@ fn onsen_bbox_many_with_drop_unchecked<'a>(
     }
 }
 
-fn onsen_box_many_with_drop<'a>(howmany: usize, drop_percent: u32, pool: &'a onsen::RcPool<u64>) {
+fn onsen_rcpool_box_many_with_drop<'a>(
+    howmany: usize,
+    drop_percent: u32,
+    pool: &'a onsen::RcPool<u64>,
+) {
+    let mut state = 0xbabeface_u32;
+    let mut keep = Vec::with_capacity(howmany);
+    for _ in 0..howmany {
+        keep.push(Some(onsen::Box::new(0u64, pool)));
+        if fast_prng(&mut state) % 100 < drop_percent {
+            let pos = fast_prng(&mut state) as usize % keep.len();
+            if let Some(_) = keep[pos].take() {
+                keep[pos] = None;
+            }
+        }
+    }
+}
+
+fn onsen_arcpool_box_many_with_drop<'a>(
+    howmany: usize,
+    drop_percent: u32,
+    pool: &'a onsen::ArcPool<u64>,
+) {
     let mut state = 0xbabeface_u32;
     let mut keep = Vec::with_capacity(howmany);
     for _ in 0..howmany {
@@ -151,11 +184,20 @@ fn criterion_benchmark(c: &mut Criterion) {
         }
     });
 
-    baseline.bench_function("onsen::Box drop", {
+    baseline.bench_function("onsen::Box|RcPool drop", {
         |b| {
             let pool: onsen::RcPool<u64> = onsen::RcPool::new();
             pool.with_min_entries(1000);
-            b.iter(|| onsen_box_drop(&pool));
+            b.iter(|| onsen_rcpool_box_drop(&pool));
+            drop(pool);
+        }
+    });
+
+    baseline.bench_function("onsen::Box|ArcPool drop", {
+        |b| {
+            let pool: onsen::ArcPool<u64> = onsen::ArcPool::new();
+            pool.with_min_entries(1000);
+            b.iter(|| onsen_arcpool_box_drop(&pool));
             drop(pool);
         }
     });
@@ -190,11 +232,19 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        baseline.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        baseline.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             move |b, &s| {
                 let pool: onsen::RcPool<u64> = onsen::RcPool::new();
                 pool.with_min_entries(1000);
-                b.iter(|| onsen_box_many(*s, &pool));
+                b.iter(|| onsen_rcpool_box_many(*s, &pool));
+            }
+        });
+
+        baseline.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            move |b, &s| {
+                let pool: onsen::ArcPool<u64> = onsen::ArcPool::new();
+                pool.with_min_entries(1000);
+                b.iter(|| onsen_arcpool_box_many(*s, &pool));
             }
         });
     }
@@ -233,11 +283,19 @@ fn criterion_benchmark(c: &mut Criterion) {
             },
         );
 
-        baseline.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        baseline.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             move |b, &s| {
                 let pool: onsen::RcPool<u64> = onsen::RcPool::new();
                 pool.with_min_entries(1000);
-                b.iter(|| onsen_box_many_with_drop(*s, 50, &pool));
+                b.iter(|| onsen_rcpool_box_many_with_drop(*s, 50, &pool));
+            }
+        });
+
+        baseline.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            move |b, &s| {
+                let pool: onsen::ArcPool<u64> = onsen::ArcPool::new();
+                pool.with_min_entries(1000);
+                b.iter(|| onsen_arcpool_box_many_with_drop(*s, 50, &pool));
             }
         });
     }

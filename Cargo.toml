@@ -10,8 +10,7 @@ keywords = ["allocator", "pool"]
 categories = ["memory-management"]
 
 [features]
-# TBox, using threadcell::ThreadCell/STPool
-default = ["st_tbox"]
+default = []
 
 # TBox, using std::sync::Mutex/TPool
 #default = ["tbox"]
@@ -22,6 +21,7 @@ default = ["st_tbox"]
 tbox = ["dep:assoc_static"]
 stpool = ["dep:threadcell"]
 st_tbox = ["tbox", "stpool"]
+parking_lot = ["dep:parking_lot"]
 
 
 [dependencies]

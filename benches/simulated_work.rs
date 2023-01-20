@@ -63,10 +63,27 @@ impl<const N: usize> DataHandle for BoxedData<N> {
     }
 }
 
-// data in a onsen box
-pub struct OnsenBoxedData<const N: usize>(onsen::Box<Data<N>, onsen::RcPool<Data<N>>>);
+// data in a onsen box with RcPool
+pub struct RcPoolBoxData<const N: usize>(onsen::Box<Data<N>, onsen::RcPool<Data<N>>>);
 
-impl<const N: usize> DataHandle for OnsenBoxedData<N> {
+impl<const N: usize> DataHandle for RcPoolBoxData<N> {
+    fn primary(&self) -> &u32 {
+        &self.0.primary
+    }
+
+    fn primary_mut(&mut self) -> &mut u32 {
+        &mut self.0.primary
+    }
+
+    fn payload(&mut self) -> &mut [u32] {
+        &mut self.0.payload
+    }
+}
+
+// data in a onsen box with ArcPool
+pub struct ArcPoolBoxData<const N: usize>(onsen::Box<Data<N>, onsen::ArcPool<Data<N>>>);
+
+impl<const N: usize> DataHandle for ArcPoolBoxData<N> {
     fn primary(&self) -> &u32 {
         &self.0.primary
     }
@@ -229,21 +246,42 @@ impl<const N: usize> Worker<'_> for BoxWorker<N> {
     }
 }
 
-// Worker for onsen boxes
-pub struct OnsenBoxWorker<const N: usize> {
+// Worker for onsen rcpool boxes
+pub struct RcPoolBoxWorker<const N: usize> {
     pool: onsen::RcPool<Data<N>>,
 }
 
-impl<'a, const N: usize> Worker<'a> for OnsenBoxWorker<N> {
-    type Data = OnsenBoxedData<N>;
+impl<'a, const N: usize> Worker<'a> for RcPoolBoxWorker<N> {
+    type Data = RcPoolBoxData<N>;
     fn new() -> Self {
         let pool = onsen::RcPool::new();
         pool.with_min_entries(1000);
-        OnsenBoxWorker { pool }
+        RcPoolBoxWorker { pool }
     }
 
     fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
-        Some(OnsenBoxedData(onsen::Box::new(
+        Some(RcPoolBoxData(onsen::Box::new(
+            Data::new(primary),
+            &self.pool,
+        )))
+    }
+}
+
+// Worker for onsen arcpool boxes
+pub struct ArcPoolBoxWorker<const N: usize> {
+    pool: onsen::ArcPool<Data<N>>,
+}
+
+impl<'a, const N: usize> Worker<'a> for ArcPoolBoxWorker<N> {
+    type Data = ArcPoolBoxData<N>;
+    fn new() -> Self {
+        let pool = onsen::ArcPool::new();
+        pool.with_min_entries(1000);
+        ArcPoolBoxWorker { pool }
+    }
+
+    fn new_element(&'a self, primary: u32) -> Option<Self::Data> {
+        Some(ArcPoolBoxData(onsen::Box::new(
             Data::new(primary),
             &self.pool,
         )))
@@ -279,9 +317,9 @@ fn fast_prng(state: &mut u32) -> u32 {
 }
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let test_range = [
-        1000, 10000, 25000, 50000, 75000, 100000, 125000, 150000, 175000, 200000,
-    ];
+    //let test_range = [1000, 10000, 25000, 50000, 75000, 100000];
+    //let test_range = [10000, 100000, 250000, 500000, 750000, 1000000];
+    let test_range = [100, 1000, 2500, 5000, 7500, 10000];
     // Keep benchmarks
     let mut simulated_work = c.benchmark_group("simulated keep, small data");
 
@@ -307,9 +345,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             |b, &s| {
-                let worker = OnsenBoxWorker::<SMALL>::new();
+                let worker = RcPoolBoxWorker::<SMALL>::new();
+                b.iter(|| {
+                    worker.run_keep(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            |b, &s| {
+                let worker = ArcPoolBoxWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
@@ -338,15 +385,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         simulated_work.throughput(Throughput::Elements(*size as u64));
         simulated_work.measurement_time(Duration::from_secs(30));
 
-        simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
-            |b, &s| {
-                let worker = OwnedWorker::<MEDIUM>::new();
-                b.iter(|| {
-                    worker.run_keep(*s);
-                })
-            }
-        });
-
         simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
                 let worker = BoxWorker::<MEDIUM>::new();
@@ -356,9 +394,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             |b, &s| {
-                let worker = OnsenBoxWorker::<MEDIUM>::new();
+                let worker = RcPoolBoxWorker::<MEDIUM>::new();
+                b.iter(|| {
+                    worker.run_keep(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            |b, &s| {
+                let worker = ArcPoolBoxWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
@@ -397,9 +444,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             |b, &s| {
-                let worker = OnsenBoxWorker::<BIG>::new();
+                let worker = RcPoolBoxWorker::<BIG>::new();
+                b.iter(|| {
+                    worker.run_keep(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            |b, &s| {
+                let worker = ArcPoolBoxWorker::<BIG>::new();
                 b.iter(|| {
                     worker.run_keep(*s);
                 })
@@ -447,9 +503,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             |b, &s| {
-                let worker = OnsenBoxWorker::<SMALL>::new();
+                let worker = RcPoolBoxWorker::<SMALL>::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            |b, &s| {
+                let worker = ArcPoolBoxWorker::<SMALL>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
@@ -464,15 +529,6 @@ fn criterion_benchmark(c: &mut Criterion) {
         simulated_work.throughput(Throughput::Elements(*size as u64));
         simulated_work.measurement_time(Duration::from_secs(30));
 
-        simulated_work.bench_with_input(BenchmarkId::new("owned", size), &size, {
-            |b, &s| {
-                let worker = OwnedWorker::<MEDIUM>::new();
-                b.iter(|| {
-                    worker.run_drop(*s);
-                })
-            }
-        });
-
         simulated_work.bench_with_input(BenchmarkId::new("std::boxed::Box", size), &size, {
             |b, &s| {
                 let worker = BoxWorker::<MEDIUM>::new();
@@ -482,9 +538,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             |b, &s| {
-                let worker = OnsenBoxWorker::<MEDIUM>::new();
+                let worker = RcPoolBoxWorker::<MEDIUM>::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            |b, &s| {
+                let worker = ArcPoolBoxWorker::<MEDIUM>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })
@@ -508,9 +573,18 @@ fn criterion_benchmark(c: &mut Criterion) {
             }
         });
 
-        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box", size), &size, {
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|RcPool", size), &size, {
             |b, &s| {
-                let worker = OnsenBoxWorker::<BIG>::new();
+                let worker = RcPoolBoxWorker::<BIG>::new();
+                b.iter(|| {
+                    worker.run_drop(*s);
+                })
+            }
+        });
+
+        simulated_work.bench_with_input(BenchmarkId::new("onsen::Box|ArcPool", size), &size, {
+            |b, &s| {
+                let worker = ArcPoolBoxWorker::<BIG>::new();
                 b.iter(|| {
                     worker.run_drop(*s);
                 })

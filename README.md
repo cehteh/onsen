@@ -33,6 +33,13 @@ Adds a reference counter to the pool. Thus makes it available to the different `
 implementations. `RcPool` is still meant for singlethread use.
 
 
+## ArcPool
+
+Adds an atomic reference counter to the pool and protects it by a Mutex. Thus makes it
+available to the different `Box` implementations. `ArcPool` can be used as multithreaded pool,
+but its allocation performance is rather poor.
+
+
 # Boxes
 
 ## UnsafeBox
@@ -65,9 +72,9 @@ static.
 # Features
 
 Onsen provides a singlethreaded `Pool`, a singlethreaded reference counted `RcPool` and a
-multithreaded `TPool`.  Additional features are gated with feature flags.
+multithreaded `ArcPool`.  Additional features are gated with feature flags.
 
- * **parking_lot** use parking_lot for the `TPool` (instead `std::sync::Mutex`). This makes
+ * **parking_lot** use parking_lot for the `ArcPool` (instead `std::sync::Mutex`). This makes
    sense when parking lot is already in use. There is no significant performance benefit from
    this in onsen.
  * **stpool** Makes `STPool` available, a singlethreaded pool that uses a `ThreadCell` which

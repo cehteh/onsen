@@ -22,6 +22,7 @@ pub use assoc_static::*;
 mod block;
 use block::*;
 
+mod arcpool;
 mod basicbox;
 mod boxed;
 mod entry;
@@ -39,6 +40,7 @@ mod unsafebox;
 // mod trefcounted;
 // mod tstrongcounted;
 
+pub use arcpool::*;
 pub use basicbox::*;
 pub use boxed::*;
 pub use entry::*;
