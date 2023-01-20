@@ -11,13 +11,15 @@ use crate::*;
 
 /// A Box for pool allocated objects. This wraps `UnsafeBox` in a safe way. Dropping a Box will
 /// ensure that the destructor is called and the memory is given back to the pool.
-#[repr(C)]
-pub struct Box<T, P: SharedPoolApi<T>>(UnsafeBox<T>, P);
+pub struct Box<T, P: SharedPoolApi<T>> {
+    slot: UnsafeBox<T>,
+    pool: P,
+}
 
 impl<T, P: SharedPoolApi<T>> AsSharedPool<T, P> for Box<T, P> {
     #[inline]
     fn as_shared_pool(&self) -> &P {
-        &self.1
+        &self.pool
     }
 }
 
@@ -28,21 +30,24 @@ impl<T, P: SharedPoolApi<T>> Box<T, P> {
     #[inline]
     pub fn new(value: T, aspool: &impl AsSharedPool<T, P>) -> Self {
         let pool = aspool.as_shared_pool();
-        Self(pool.alloc(value), pool.clone())
+        Self {
+            slot: pool.alloc(value),
+            pool: pool.clone(),
+        }
     }
 
     /// Associated function that frees the memory of a Box without calling the destructor of
     /// its value.
     #[inline]
     pub fn forget(mut this: Self) {
-        std::mem::forget(unsafe { this.0.take() });
+        std::mem::forget(unsafe { this.slot.take() });
     }
 
     /// Associated function that frees the memory of a Box and returns the value it was holding.
     #[inline]
     #[must_use]
     pub fn into_inner(mut this: Self) -> T {
-        unsafe { this.0.take() }
+        unsafe { this.slot.take() }
     }
 }
 
@@ -51,7 +56,10 @@ impl<T: Default, P: SharedPoolApi<T>> Box<T, P> {
     #[inline]
     #[must_use]
     pub fn default(pool: &P) -> Self {
-        Self(pool.alloc(T::default()), pool.clone())
+        Self {
+            slot: pool.alloc(T::default()),
+            pool: pool.clone(),
+        }
     }
 }
 
@@ -60,8 +68,8 @@ impl<T, P: SharedPoolApi<T>> Drop for Box<T, P> {
     fn drop(&mut self) {
         // Safety: Boxes always refer the pool they where created from
         unsafe {
-            self.1
-                .with_lock(|pool| pool.fast_free_entry_unchecked(self.0.manually_drop()));
+            self.pool
+                .with_lock(|pool| pool.fast_free_entry_unchecked(self.slot.manually_drop()));
         }
     }
 }
@@ -71,42 +79,42 @@ impl<T, P: SharedPoolApi<T>> Deref for Box<T, P> {
 
     #[inline]
     fn deref(&self) -> &<Self as Deref>::Target {
-        &self.0
+        &self.slot
     }
 }
 
 impl<T, P: SharedPoolApi<T>> DerefMut for Box<T, P> {
     #[inline]
     fn deref_mut(&mut self) -> &mut <Self as Deref>::Target {
-        &mut self.0
+        &mut self.slot
     }
 }
 
 impl<T, P: SharedPoolApi<T>> Borrow<T> for Box<T, P> {
     #[inline]
     fn borrow(&self) -> &T {
-        &self.0
+        &self.slot
     }
 }
 
 impl<T, P: SharedPoolApi<T>> BorrowMut<T> for Box<T, P> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
-        &mut self.0
+        &mut self.slot
     }
 }
 
 impl<T, P: SharedPoolApi<T>> AsRef<T> for Box<T, P> {
     #[inline]
     fn as_ref(&self) -> &T {
-        &self.0
+        &self.slot
     }
 }
 
 impl<T, P: SharedPoolApi<T>> AsMut<T> for Box<T, P> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
-        &mut self.0
+        &mut self.slot
     }
 }
 
