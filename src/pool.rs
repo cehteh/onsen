@@ -61,6 +61,7 @@ mod pool_tests {
     #[cfg(debug_assertions)]
     #[test]
     #[should_panic]
+    #[cfg_attr(miri, ignore)]
     fn leak_unsafe_box() {
         let pool: Pool<String> = Pool::new();
         let bbox = pool.alloc("I am a Zombie".to_string());
