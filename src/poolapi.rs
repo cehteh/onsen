@@ -1,17 +1,44 @@
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 
+use erasable::*;
+
 use crate::*;
+
+/// The things a pool stores.
+#[doc(hidden)]
+pub trait PoolEntry: Sized {
+    /// The actual user type stored in the pool.
+    type Value: Sized;
+}
+
+/// Entry types of shared box types. Needs to be constructed with a backreference to the pool
+/// itself as type erased pointer.
+#[doc(hidden)]
+pub trait SharedPoolEntry: PoolEntry {
+    /// Creates a new entry
+    fn new(value: Self::Value, ptr: ErasedPtr) -> Self;
+}
+
+/// Entry types of owned box types.
+#[doc(hidden)]
+pub trait OwnedPoolEntry: PoolEntry {
+    /// Creates a new entry
+    fn new(value: Self::Value) -> Self;
+}
 
 /// internal API
 #[doc(hidden)]
-pub trait PrivPoolApi<T>: Sized {
+pub trait PrivPoolApi: Sized {
+    /// The type of elements this pool stores
+    type Entry: PoolEntry;
+
     /// Implements the interior mutability of a pool, if any.
-    fn with_lock<R, F: FnOnce(&mut PoolInner<T>) -> R>(&self, f: F) -> R;
+    fn with_lock<R, F: FnOnce(&mut PoolInner<Self::Entry>) -> R>(&self, f: F) -> R;
 
     /// Allocates a new entry, either from the freelist or by extending the pool.
     /// Returns an uninitialized Entry pointer.
-    fn alloc_entry(&self) -> NonNull<Entry<T>> {
+    fn alloc_entry(&self) -> NonNull<Entry<Self::Entry>> {
         self.with_lock(|pool| pool.alloc_entry())
     }
 }
@@ -20,9 +47,9 @@ pub trait PrivPoolApi<T>: Sized {
 /// default implements all its methods. It is not intended to be implemented by a user.
 ///
 /// This trait must be in scope to be used.
-pub trait PoolApi<T>
+pub trait PoolApi
 where
-    Self: PrivPoolApi<T>,
+    Self: PrivPoolApi,
 {
     /// Configures the minimum number of entries the first block will hold. Must be called
     /// before the first allocation is made otherwise it will have no effect. Since blocks are
@@ -49,7 +76,7 @@ where
     /// its it will leak until the Pool becomes dropped, this happens when panicking or might
     /// be intentional when the whole Pool becomes dropped at a later time.
     #[inline]
-    fn alloc(&self, t: T) -> UnsafeBox<T> {
+    fn alloc(&self, t: <Self as PrivPoolApi>::Entry) -> UnsafeBox<<Self as PrivPoolApi>::Entry> {
         let mut entry = self.alloc_entry();
         unsafe {
             entry.as_ptr().write(Entry {
@@ -66,7 +93,7 @@ where
     ///
     ///  * The `UnsafeBox` is not allocated from this pool.
     #[inline]
-    fn dealloc(&self, mut ubox: UnsafeBox<T>) {
+    fn dealloc(&self, mut ubox: UnsafeBox<<Self as PrivPoolApi>::Entry>) {
         self.with_lock(|pool| {
             ubox.assert_initialized();
             unsafe {
@@ -85,7 +112,7 @@ where
     ///
     ///  * The `UnsafeBox` must be allocated from this `Pool`, otherwise this is UB.
     #[inline]
-    unsafe fn dealloc_unchecked(&self, mut ubox: UnsafeBox<T>) {
+    unsafe fn dealloc_unchecked(&self, mut ubox: UnsafeBox<<Self as PrivPoolApi>::Entry>) {
         self.with_lock(|pool| {
             pool.fast_free_entry_unchecked(ubox.manually_drop());
         });
@@ -97,7 +124,7 @@ where
     ///
     ///  * The `UnsafeBox` is not allocated from this pool
     #[inline]
-    fn forget(&self, mut ubox: UnsafeBox<T>) {
+    fn forget(&self, mut ubox: UnsafeBox<<Self as PrivPoolApi>::Entry>) {
         self.with_lock(|pool| unsafe {
             pool.free_entry(ubox.take_entry());
         });
@@ -110,7 +137,10 @@ where
     ///
     ///  * The `UnsafeBox` is not allocated from this pool
     #[inline]
-    fn take(&self, mut ubox: UnsafeBox<T>) -> T {
+    fn take(
+        &self,
+        mut ubox: UnsafeBox<<Self as PrivPoolApi>::Entry>,
+    ) -> <Self as PrivPoolApi>::Entry {
         self.with_lock(|pool| unsafe {
             let ret = ubox.take();
             pool.free_entry(ubox.take_entry());
@@ -120,12 +150,14 @@ where
 }
 
 /// A pool that can be shared, just adds `Clone` to the `PoolApi`
-pub trait SharedPoolApi<T>: PoolApi<T> + Clone {}
+pub trait SharedPoolApi: PoolApi + Clone + ErasablePtr {}
 
-/// Getting a reference to the shared pool. This makes it possible that not only pools
+/// Clones a shared pool. This makes it possible that not only pools
 /// themselves can be referenced but also boxed values that contains reference to the pool
 /// they are created from.
-pub trait AsSharedPool<T, P: SharedPoolApi<T>> {
-    /// Returns a reference to the underlying shared pool.
-    fn as_shared_pool(&self) -> &P;
+pub trait CloneSharedPool {
+    /// The actual pool to be cloned.
+    type Pool: SharedPoolApi;
+    /// Returns a clone of the underlying shared pool.
+    fn clone_shared_pool(&self) -> Self::Pool;
 }
