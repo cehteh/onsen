@@ -23,15 +23,34 @@ use crate::*;
 /// Sometimes can be used as advantage when using temporary pools where the memory reclamation
 /// will happen when the `Pool` becomes dropped.
 #[repr(transparent)]
-pub struct BasicBox<'a, T>(UnsafeBox<T>, PhantomData<&'a Pool<T>>);
+pub struct BasicBox<'a, T, P: PoolApi<Entry = BasicBoxInner<T>>>(
+    UnsafeBox<P::Entry>,
+    PhantomData<&'a P>,
+);
 
-unsafe impl<T: Send> Send for BasicBox<'_, T> {}
-unsafe impl<T: Sync> Sync for BasicBox<'_, T> {}
+/// What we store in the pool, is T and a reference to its owning pool.
+#[doc(hidden)]
+#[repr(transparent)]
+pub struct BasicBoxInner<T>(T);
 
-impl<'a, T> BasicBox<'a, T> {
+impl<T> PoolEntry for BasicBoxInner<T> {
+    type Value = T;
+}
+
+impl<T> OwnedPoolEntry for BasicBoxInner<T> {
+    #[inline(always)]
+    fn new(value: Self::Value) -> Self {
+        BasicBoxInner(value)
+    }
+}
+
+unsafe impl<T: Send, P: PoolApi<Entry = BasicBoxInner<T>>> Send for BasicBox<'_, T, P> {}
+unsafe impl<T: Sync, P: PoolApi<Entry = BasicBoxInner<T>>> Sync for BasicBox<'_, T, P> {}
+
+impl<'a, T, P: PoolApi<Entry = BasicBoxInner<T>>> BasicBox<'a, T, P> {
     /// Creates a new `BasicBox` from within the given pool.
-    pub fn new(from: T, pool: &'a Pool<T>) -> Self {
-        Self(pool.alloc(from), PhantomData)
+    pub fn new(from: T, pool: &P) -> Self {
+        Self(pool.alloc(BasicBoxInner(from)), PhantomData)
     }
 
     /// Deallocates a `BasicBox`. A `BasicBox` that is not deallocated when it goes out of
@@ -40,7 +59,7 @@ impl<'a, T> BasicBox<'a, T> {
     /// # Panics
     ///
     /// This `BasicBox` was not allocated from the given pool.
-    pub fn drop(this: Self, pool: &'a Pool<T>) {
+    pub fn drop(this: Self, pool: &'a P) {
         pool.dealloc(this.0);
     }
 
@@ -50,7 +69,7 @@ impl<'a, T> BasicBox<'a, T> {
     /// # Safety
     ///
     /// This `BasicBox` must be allocated from the given pool.
-    pub unsafe fn drop_unchecked(this: Self, pool: &'a Pool<T>) {
+    pub unsafe fn drop_unchecked(this: Self, pool: &'a P) {
         pool.dealloc_unchecked(this.0);
     }
 
@@ -59,8 +78,8 @@ impl<'a, T> BasicBox<'a, T> {
     /// # Panics
     ///
     /// This `BasicBox` was not allocated from the given pool.
-    pub fn into_inner(this: Self, pool: &'a Pool<T>) -> T {
-        pool.take(this.0)
+    pub fn into_inner(this: Self, pool: &'a P) -> T {
+        pool.take(this.0).0
     }
 
     /// Deallocates a `BasicBox` without calling its destructor. A `BasicBox` that is not
@@ -69,103 +88,103 @@ impl<'a, T> BasicBox<'a, T> {
     /// # Panics
     ///
     /// This `BasicBox` was not allocated from the given pool.
-    pub fn forget(this: Self, pool: &'a Pool<T>) {
+    pub fn forget(this: Self, pool: &'a P) {
         pool.forget(this.0);
     }
 }
 
-impl<'a, T: Default> BasicBox<'a, T> {
+impl<'a, T: Default, P: PoolApi<Entry = BasicBoxInner<T>>> BasicBox<'a, T, P> {
     /// Creates a new default initialized `BasicBox` from within the given pool.
-    pub fn default(pool: &'a Pool<T>) -> Self {
-        Self(pool.alloc(T::default()), PhantomData)
+    pub fn default(pool: &'a P) -> Self {
+        Self(pool.alloc(BasicBoxInner(T::default())), PhantomData)
     }
 }
 
-impl<T> Deref for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> Deref for BasicBox<'_, T, P> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &self.0 .0
     }
 }
 
-impl<T> DerefMut for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> DerefMut for BasicBox<'_, T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        &mut self.0 .0
     }
 }
 
-impl<T> Borrow<T> for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> Borrow<T> for BasicBox<'_, T, P> {
     #[inline]
     fn borrow(&self) -> &T {
-        &self.0
+        &self.0 .0
     }
 }
 
-impl<T> BorrowMut<T> for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> BorrowMut<T> for BasicBox<'_, T, P> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
-        &mut self.0
+        &mut self.0 .0
     }
 }
 
-impl<T> AsRef<T> for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> AsRef<T> for BasicBox<'_, T, P> {
     #[inline]
     fn as_ref(&self) -> &T {
-        &self.0
+        &self.0 .0
     }
 }
 
-impl<T> AsMut<T> for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> AsMut<T> for BasicBox<'_, T, P> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
-        &mut self.0
+        &mut self.0 .0
     }
 }
 
-impl<T: PartialEq> PartialEq for BasicBox<'_, T> {
+impl<T: PartialEq, P: PoolApi<Entry = BasicBoxInner<T>>> PartialEq for BasicBox<'_, T, P> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         PartialEq::eq(&**self, &**other)
     }
 }
 
-impl<T: PartialOrd> PartialOrd for BasicBox<'_, T> {
+impl<T: PartialOrd, P: PoolApi<Entry = BasicBoxInner<T>>> PartialOrd for BasicBox<'_, T, P> {
     partial_ord_impl! {}
 }
 
-impl<T: Ord> Ord for BasicBox<'_, T> {
+impl<T: Ord, P: PoolApi<Entry = BasicBoxInner<T>>> Ord for BasicBox<'_, T, P> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         Ord::cmp(&**self, &**other)
     }
 }
-impl<T: Eq> Eq for BasicBox<'_, T> {}
+impl<T: Eq, P: PoolApi<Entry = BasicBoxInner<T>>> Eq for BasicBox<'_, T, P> {}
 
-impl<T: Hash> Hash for BasicBox<'_, T> {
+impl<T: Hash, P: PoolApi<Entry = BasicBoxInner<T>>> Hash for BasicBox<'_, T, P> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         (**self).hash(state);
     }
 }
 
-impl<T: Hasher> Hasher for BasicBox<'_, T> {
+impl<T: Hasher, P: PoolApi<Entry = BasicBoxInner<T>>> Hasher for BasicBox<'_, T, P> {
     hasher_impl! {}
 }
 
-impl<T: fmt::Display> fmt::Display for BasicBox<'_, T> {
+impl<T: fmt::Display, P: PoolApi<Entry = BasicBoxInner<T>>> fmt::Display for BasicBox<'_, T, P> {
     #[mutants::skip] /* we just pretend it works */
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
 
-impl<T> fmt::Debug for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> fmt::Debug for BasicBox<'_, T, P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         f.debug_tuple("BasicBox").field(&self.0).finish()
     }
 }
 
-impl<T> fmt::Pointer for BasicBox<'_, T> {
+impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> fmt::Pointer for BasicBox<'_, T, P> {
     #[mutants::skip] /* we just pretend it works */
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr: *const T = &**self;
