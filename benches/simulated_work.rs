@@ -64,7 +64,9 @@ impl<const N: usize> DataHandle for BoxedData<N> {
 }
 
 // data in a onsen box with RcPool
-pub struct RcPoolBoxData<const N: usize>(onsen::Box<Data<N>, onsen::RcPool<Data<N>>>);
+pub struct RcPoolBoxData<const N: usize>(
+    onsen::Box<Data<N>, onsen::RcPool<onsen::FatPoolEntry<Data<N>>>>,
+);
 
 impl<const N: usize> DataHandle for RcPoolBoxData<N> {
     fn primary(&self) -> &u32 {
@@ -81,7 +83,9 @@ impl<const N: usize> DataHandle for RcPoolBoxData<N> {
 }
 
 // data in a onsen box with ArcPool
-pub struct ArcPoolBoxData<const N: usize>(onsen::Box<Data<N>, onsen::ArcPool<Data<N>>>);
+pub struct ArcPoolBoxData<const N: usize>(
+    onsen::Box<Data<N>, onsen::ArcPool<onsen::FatPoolEntry<Data<N>>>>,
+);
 
 impl<const N: usize> DataHandle for ArcPoolBoxData<N> {
     fn primary(&self) -> &u32 {
@@ -98,7 +102,9 @@ impl<const N: usize> DataHandle for ArcPoolBoxData<N> {
 }
 
 // data in a onsen basic box
-pub struct OnsenBasicBoxedData<'a, const N: usize>(onsen::BasicBox<'a, Data<N>>);
+pub struct OnsenBasicBoxedData<'a, const N: usize>(
+    onsen::BasicBox<'a, Data<N>, onsen::Pool<onsen::ThinPoolEntry<Data<N>>>>,
+);
 
 impl<'a, const N: usize> DataHandle for OnsenBasicBoxedData<'a, N> {
     fn primary(&self) -> &u32 {
@@ -248,7 +254,7 @@ impl<const N: usize> Worker<'_> for BoxWorker<N> {
 
 // Worker for onsen rcpool boxes
 pub struct RcPoolBoxWorker<const N: usize> {
-    pool: onsen::RcPool<Data<N>>,
+    pool: onsen::RcPool<onsen::FatPoolEntry<Data<N>>>,
 }
 
 impl<'a, const N: usize> Worker<'a> for RcPoolBoxWorker<N> {
@@ -269,7 +275,7 @@ impl<'a, const N: usize> Worker<'a> for RcPoolBoxWorker<N> {
 
 // Worker for onsen arcpool boxes
 pub struct ArcPoolBoxWorker<const N: usize> {
-    pool: onsen::ArcPool<Data<N>>,
+    pool: onsen::ArcPool<onsen::FatPoolEntry<Data<N>>>,
 }
 
 impl<'a, const N: usize> Worker<'a> for ArcPoolBoxWorker<N> {
@@ -290,7 +296,7 @@ impl<'a, const N: usize> Worker<'a> for ArcPoolBoxWorker<N> {
 
 // Worker for leaking onsen basic boxes
 pub struct OnsenBasicBoxLeakWorker<const N: usize> {
-    pool: onsen::Pool<Data<N>>,
+    pool: onsen::Pool<onsen::ThinPoolEntry<Data<N>>>,
 }
 
 impl<'a, const N: usize> Worker<'a> for OnsenBasicBoxLeakWorker<N> {
