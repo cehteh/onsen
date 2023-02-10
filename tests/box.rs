@@ -25,7 +25,7 @@ fn many_allocations() {
 #[test]
 fn box_is_thin_pointer() {
     assert_eq!(
-        std::mem::size_of::<Box<usize, RcPool<BoxInner<usize>>>>(),
+        std::mem::size_of::<Box<usize, RcPool<FatPoolEntry<usize>>>>(),
         std::mem::size_of::<usize>()
     );
 }

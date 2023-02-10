@@ -1,31 +1,8 @@
 use std::mem::ManuallyDrop;
 use std::ptr::NonNull;
 
-use erasable::*;
-
 use crate::*;
-
-/// The things a pool stores.
-#[doc(hidden)]
-pub trait PoolEntry: Sized {
-    /// The actual user type stored in the pool.
-    type Value: Sized;
-}
-
-/// Entry types of shared box types. Needs to be constructed with a backreference to the pool
-/// itself as type erased pointer.
-#[doc(hidden)]
-pub trait SharedPoolEntry: PoolEntry {
-    /// Creates a new entry
-    fn new(value: Self::Value, ptr: ErasedPtr) -> Self;
-}
-
-/// Entry types of owned box types.
-#[doc(hidden)]
-pub trait OwnedPoolEntry: PoolEntry {
-    /// Creates a new entry
-    fn new(value: Self::Value) -> Self;
-}
+use erasable::*;
 
 /// internal API
 #[doc(hidden)]
@@ -76,6 +53,7 @@ where
     /// its it will leak until the Pool becomes dropped, this happens when panicking or might
     /// be intentional when the whole Pool becomes dropped at a later time.
     #[inline]
+    // TODO: can this be priv?
     fn alloc(&self, t: <Self as PrivPoolApi>::Entry) -> UnsafeBox<<Self as PrivPoolApi>::Entry> {
         let mut entry = self.alloc_entry();
         unsafe {

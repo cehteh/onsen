@@ -23,34 +23,18 @@ use crate::*;
 /// Sometimes can be used as advantage when using temporary pools where the memory reclamation
 /// will happen when the `Pool` becomes dropped.
 #[repr(transparent)]
-pub struct BasicBox<'a, T, P: PoolApi<Entry = BasicBoxInner<T>>>(
+pub struct BasicBox<'a, T, P: PoolApi<Entry = ThinPoolEntry<T>>>(
     UnsafeBox<P::Entry>,
     PhantomData<&'a P>,
 );
 
-/// What we store in the pool, is T and a reference to its owning pool.
-#[doc(hidden)]
-#[repr(transparent)]
-pub struct BasicBoxInner<T>(T);
+unsafe impl<T: Send, P: PoolApi<Entry = ThinPoolEntry<T>>> Send for BasicBox<'_, T, P> {}
+unsafe impl<T: Sync, P: PoolApi<Entry = ThinPoolEntry<T>>> Sync for BasicBox<'_, T, P> {}
 
-impl<T> PoolEntry for BasicBoxInner<T> {
-    type Value = T;
-}
-
-impl<T> OwnedPoolEntry for BasicBoxInner<T> {
-    #[inline(always)]
-    fn new(value: Self::Value) -> Self {
-        BasicBoxInner(value)
-    }
-}
-
-unsafe impl<T: Send, P: PoolApi<Entry = BasicBoxInner<T>>> Send for BasicBox<'_, T, P> {}
-unsafe impl<T: Sync, P: PoolApi<Entry = BasicBoxInner<T>>> Sync for BasicBox<'_, T, P> {}
-
-impl<'a, T, P: PoolApi<Entry = BasicBoxInner<T>>> BasicBox<'a, T, P> {
+impl<'a, T, P: PoolApi<Entry = ThinPoolEntry<T>>> BasicBox<'a, T, P> {
     /// Creates a new `BasicBox` from within the given pool.
     pub fn new(from: T, pool: &P) -> Self {
-        Self(pool.alloc(BasicBoxInner(from)), PhantomData)
+        Self(pool.alloc(ThinPoolEntry(from)), PhantomData)
     }
 
     /// Deallocates a `BasicBox`. A `BasicBox` that is not deallocated when it goes out of
@@ -93,14 +77,14 @@ impl<'a, T, P: PoolApi<Entry = BasicBoxInner<T>>> BasicBox<'a, T, P> {
     }
 }
 
-impl<'a, T: Default, P: PoolApi<Entry = BasicBoxInner<T>>> BasicBox<'a, T, P> {
+impl<'a, T: Default, P: PoolApi<Entry = ThinPoolEntry<T>>> BasicBox<'a, T, P> {
     /// Creates a new default initialized `BasicBox` from within the given pool.
     pub fn default(pool: &'a P) -> Self {
-        Self(pool.alloc(BasicBoxInner(T::default())), PhantomData)
+        Self(pool.alloc(ThinPoolEntry(T::default())), PhantomData)
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> Deref for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> Deref for BasicBox<'_, T, P> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -108,83 +92,83 @@ impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> Deref for BasicBox<'_, T, P> {
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> DerefMut for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> DerefMut for BasicBox<'_, T, P> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0 .0
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> Borrow<T> for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> Borrow<T> for BasicBox<'_, T, P> {
     #[inline]
     fn borrow(&self) -> &T {
         &self.0 .0
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> BorrowMut<T> for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> BorrowMut<T> for BasicBox<'_, T, P> {
     #[inline]
     fn borrow_mut(&mut self) -> &mut T {
         &mut self.0 .0
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> AsRef<T> for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> AsRef<T> for BasicBox<'_, T, P> {
     #[inline]
     fn as_ref(&self) -> &T {
         &self.0 .0
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> AsMut<T> for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> AsMut<T> for BasicBox<'_, T, P> {
     #[inline]
     fn as_mut(&mut self) -> &mut T {
         &mut self.0 .0
     }
 }
 
-impl<T: PartialEq, P: PoolApi<Entry = BasicBoxInner<T>>> PartialEq for BasicBox<'_, T, P> {
+impl<T: PartialEq, P: PoolApi<Entry = ThinPoolEntry<T>>> PartialEq for BasicBox<'_, T, P> {
     #[inline]
     fn eq(&self, other: &Self) -> bool {
         PartialEq::eq(&**self, &**other)
     }
 }
 
-impl<T: PartialOrd, P: PoolApi<Entry = BasicBoxInner<T>>> PartialOrd for BasicBox<'_, T, P> {
+impl<T: PartialOrd, P: PoolApi<Entry = ThinPoolEntry<T>>> PartialOrd for BasicBox<'_, T, P> {
     partial_ord_impl! {}
 }
 
-impl<T: Ord, P: PoolApi<Entry = BasicBoxInner<T>>> Ord for BasicBox<'_, T, P> {
+impl<T: Ord, P: PoolApi<Entry = ThinPoolEntry<T>>> Ord for BasicBox<'_, T, P> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         Ord::cmp(&**self, &**other)
     }
 }
-impl<T: Eq, P: PoolApi<Entry = BasicBoxInner<T>>> Eq for BasicBox<'_, T, P> {}
+impl<T: Eq, P: PoolApi<Entry = ThinPoolEntry<T>>> Eq for BasicBox<'_, T, P> {}
 
-impl<T: Hash, P: PoolApi<Entry = BasicBoxInner<T>>> Hash for BasicBox<'_, T, P> {
+impl<T: Hash, P: PoolApi<Entry = ThinPoolEntry<T>>> Hash for BasicBox<'_, T, P> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         (**self).hash(state);
     }
 }
 
-impl<T: Hasher, P: PoolApi<Entry = BasicBoxInner<T>>> Hasher for BasicBox<'_, T, P> {
+impl<T: Hasher, P: PoolApi<Entry = ThinPoolEntry<T>>> Hasher for BasicBox<'_, T, P> {
     hasher_impl! {}
 }
 
-impl<T: fmt::Display, P: PoolApi<Entry = BasicBoxInner<T>>> fmt::Display for BasicBox<'_, T, P> {
+impl<T: fmt::Display, P: PoolApi<Entry = ThinPoolEntry<T>>> fmt::Display for BasicBox<'_, T, P> {
     #[mutants::skip] /* we just pretend it works */
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(&**self, f)
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> fmt::Debug for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> fmt::Debug for BasicBox<'_, T, P> {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         f.debug_tuple("BasicBox").field(&self.0).finish()
     }
 }
 
-impl<T, P: PoolApi<Entry = BasicBoxInner<T>>> fmt::Pointer for BasicBox<'_, T, P> {
+impl<T, P: PoolApi<Entry = ThinPoolEntry<T>>> fmt::Pointer for BasicBox<'_, T, P> {
     #[mutants::skip] /* we just pretend it works */
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr: *const T = &**self;

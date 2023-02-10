@@ -58,28 +58,3 @@ impl<T: PoolEntry> CloneSharedPool for RcPool<T> {
         self.clone()
     }
 }
-
-// impl<T> AsSharedPool<T, RcPool<T>> for RcPool<T> {
-//     #[inline]
-//     fn as_shared_pool(&self) -> &Self {
-//         self
-//     }
-// }
-
-// #[cfg(test)]
-// mod pool_tests {
-//     use crate::*;
-//
-//     #[test]
-//     fn smoke() {
-//         let _pool: RcPool<String> = RcPool::new();
-//     }
-// }
-//
-// #[test]
-// fn size() {
-//     assert_eq!(
-//         std::mem::size_of::<UnsafeBox<usize>>(),
-//         std::mem::size_of::<[usize; 1]>()
-//     );
-// }
